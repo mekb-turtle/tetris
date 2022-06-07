@@ -2,9 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <fcntl.h>
 #include <sys/poll.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
@@ -29,6 +27,11 @@ uint8_t place[GAME_I][GAME_J];
 #define BORDER_CHAR "▒▒"
 #define EMPTY_CHAR "  "
 #define BORDER RESET COLOR_BORDER BORDER_CHAR
+void bell() {
+#ifdef BELL
+	printf("\a");
+#endif
+}
 uint8_t print_color(uint8_t col) {
 	if      (col == ID_I) printf(COLOR_I);
 	else if (col == ID_J) printf(COLOR_J);
@@ -127,6 +130,11 @@ uint8_t move(int8_t move_i, int8_t move_j) {
 			}
 	return 1;
 }
+uint8_t rotate(int8_t a) {
+	if (a == 0) return 1;
+	if (a != -1 && a != 1) return 0;
+	return 0;
+}
 uint8_t move_indicator() {
 	for     (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
@@ -160,6 +168,22 @@ uint8_t place_to_board() {
 			}
 	return g;
 }
+uint8_t move_down() {
+	if (!move(1, 0)) {
+		bell();
+		place_to_board();
+		add_random_block();
+		move_indicator();
+		return 0;
+	}
+	return 1;
+}
+void drop() {
+	uint8_t res;
+	do {
+		res = move_down();
+	} while (res);
+}
 uint8_t move_timer = 0;
 void clear() {
 	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m");
@@ -186,11 +210,6 @@ void end_and_exit() {
 	end();
 	exit(0);
 }
-void bell() {
-#ifdef BELL
-	printf("\a");
-#endif
-}
 int main() {
 	rng = fopen(RANDOM_FILE, "r");
 	if (!rng) {
@@ -210,16 +229,13 @@ int main() {
 	add_random_block();
 	move_indicator();
 	bell();
+	uint8_t ignore;
 	while (1) {
 		if (++move_timer >= MOVE_EVERY) {
 			move_timer = 0;
-			if (!move(1, 0)) {
-				bell();
-				place_to_board();
-				//add_random_block();
-				move_indicator();
-			}
+			move_down();
 		}
+		ignore = 0;
 		while (poll_()) {
 			int c_ = fgetc(stdin);
 			if (c_ == EOF) {
@@ -230,10 +246,15 @@ int main() {
 			}
 			char c = c_;
 			if (c == '\x1a' || c == '\x03' || c == '\x04') { end(); return 0; }
-			else if (c == '\x1b') break;
+			else if (ignore);
+			else if (c == '\x1b') ignore = 1;
+			else if (c == ' ') drop();
 			else if (c == 'a' || c == 'A') { move(0, -1); move_indicator(); }
 			else if (c == 'd' || c == 'D') { move(0,  1); move_indicator(); }
-			else if (c == 's' || c == 'S') { move(1,  0); }
+			else if (c == 's' || c == 'S') { move_down(); }
+			else if (c == 'q' || c == 'Q') { rotate(-1); }
+			else if (c == 'e' || c == 'E') { rotate( 1); }
+			else ignore = 1;
 		}
 		render();
 		if (game_over) {
