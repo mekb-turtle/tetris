@@ -16,6 +16,7 @@
 #define GAME_I 20 // board height
 #define GAME_J 10 // board width
 #define BELL // comment out if you don't want a bell
+long score = 0;
 uint8_t game_over = 0; // flag for game over
 FILE* rng;
 uint8_t place_indicator[GAME_I][GAME_J]; // indicator for when dropping, also used as a temp for rotate
@@ -35,8 +36,10 @@ uint8_t next_piece_j; // width of next piece to be placed
 #define NEXT_CHAR "██"
 #define INDICATOR_CHAR "▒▒"
 #define BORDER_CHAR "▒▒"
+#define BORDER_CHAR_ONE "▒"
 #define EMPTY_CHAR "  "
 #define BORDER RESET COLOR_BORDER BORDER_CHAR
+#define BORDER_ONE RESET COLOR_BORDER BORDER_CHAR_ONE
 
 void bell() {
 #ifdef BELL
@@ -44,12 +47,17 @@ void bell() {
 #endif
 }
 
+char* score_string;
+size_t score_len;
+
 void render(uint8_t end) {
 	if (!end) printf("\x1b[H"); // goto 0,0
 	for (uint8_t j = 0; j < GAME_J+3+next_piece_j;       ++j) printf(BORDER);
 	printf(RESET);
 	for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
 	printf("\r\n");
+	sprintf(score_string, " %li %c", score, '\0');
+	score_len = strlen(score_string);
 	for (uint8_t i = 0; i < GAME_I; ++i) {
 		printf(BORDER RESET);
 		for (uint8_t j = 0; j < GAME_J; ++j) {
@@ -69,7 +77,13 @@ void render(uint8_t end) {
 			}
 		}
 		printf(BORDER);
-		if (i == next_piece_i) {
+		if (i == GAME_I - 1) {
+			printf(RESET "%s" BORDER, score_string); // print score
+		} else if (i == GAME_I - 2) {
+			printf(BORDER);
+			for (uint8_t j = 0; j < score_len; ++j)
+				printf(BORDER_ONE);
+		} else if (i == next_piece_i) {
 			for (uint8_t j = 0; j < next_piece_j+1; ++j) printf(BORDER);
 			printf(RESET);
 			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
@@ -87,7 +101,8 @@ void render(uint8_t end) {
 		}
 		printf("\r\n");
 	}
-	for     (uint8_t j = 0; j < GAME_J+2; ++j) printf(BORDER);
+	for     (uint8_t j = 0; j < GAME_J+3; ++j) printf(BORDER);
+	for     (uint8_t j = 0; j < score_len; ++j) printf(BORDER_ONE);
 	printf(RESET "\r\n");
 	if (!end) {
 		printf("\r\n\
@@ -248,8 +263,8 @@ uint8_t place_to_board() { // apply place to board
 }
 uint8_t check_full_lines() { // WIP
 	uint8_t full;
-	uint8_t all_not_full = 1;
-	uint8_t any_cleared = 0;
+	uint8_t all_not_full = 0;
+	uint8_t lines_cleared = 0;
 	while (!all_not_full) {
 		all_not_full = 1;
 		for (uint8_t i = 0; i < GAME_I; ++i) {
@@ -258,15 +273,28 @@ uint8_t check_full_lines() { // WIP
 				if (!board[i][j]) { full = 0; break; }
 			}
 			if (full) {
-				any_cleared = 1;
+				++lines_cleared;
 				all_not_full = 0;
-				for (uint8_t j = 0; j < GAME_J; ++j) {
-					board[i][j] = 0;
+				for (uint8_t k = i; k >= 0 && k != UINT8_MAX; --k) {
+					for (uint8_t j = 0; j < GAME_J; ++j) {
+						if (k == 0)
+							board[k][j] = 0;
+						else
+							board[k][j] = board[k-1][j];
+					}
 				}
 			}
 		}
 	}
-	return any_cleared;
+	return lines_cleared;
+}
+void add_score(uint8_t lines_cleared) {
+	if (lines_cleared == 0);
+	else if (lines_cleared == 1) score += 100;
+	else if (lines_cleared == 2) score += 300;
+	else if (lines_cleared == 3) score += 500;
+	else if (lines_cleared == 4) score += 800;
+	else score += 1000;
 }
 
 uint8_t move_timer = 0;
@@ -275,7 +303,7 @@ uint8_t move_down() { // move place down
 		move_timer = 0;
 		bell();
 		place_to_board();
-		check_full_lines();
+		add_score(check_full_lines());
 		add_next_piece();
 		random_next_piece();
 		move_indicator();
@@ -373,6 +401,7 @@ int main() {
 	random_next_piece();
 	move_indicator();
 	bell();
+	score_string = malloc(24);
 	uint8_t ignore;
 	while (1) {
 		if (++move_timer >= MOVE_EVERY) {
