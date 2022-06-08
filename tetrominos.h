@@ -12,6 +12,7 @@
 #define J_T 2
 #define I_Z 3
 #define J_Z 2
+
 uint8_t** piece_i;
 uint8_t** piece_j;
 uint8_t** piece_l;
@@ -20,7 +21,7 @@ uint8_t** piece_s;
 uint8_t** piece_t;
 uint8_t** piece_z;
 
-void create_pieces() {
+void create_pieces() { // i tried using arrays but they don't work with some other functions
 	piece_i = malloc(sizeof(uint8_t*)*I_I);
 	piece_j = malloc(sizeof(uint8_t*)*I_J);
 	piece_l = malloc(sizeof(uint8_t*)*I_L);
@@ -73,3 +74,14 @@ void create_pieces() {
 #define ID_S 5
 #define ID_T 6
 #define ID_Z 7
+
+char* get_color(uint8_t col) {
+	if      (col == ID_I) return COLOR_I;
+	else if (col == ID_J) return COLOR_J;
+	else if (col == ID_L) return COLOR_L;
+	else if (col == ID_O) return COLOR_O;
+	else if (col == ID_S) return COLOR_S;
+	else if (col == ID_T) return COLOR_T;
+	else if (col == ID_Z) return COLOR_Z;
+	return NULL;
+}
