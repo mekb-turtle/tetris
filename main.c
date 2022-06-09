@@ -121,6 +121,53 @@ void render(uint8_t end) {
 	}
 }
 
+uint8_t began = 0;
+void clear() {
+	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
+}
+void flush_all() 
+{
+	fflush(stdin); fflush(stdout); fflush(stderr);
+}
+void begin() {
+	if (began) return;
+	began = 1;
+	system("stty raw"); // set to raw mode
+	printf("\x1b[s\x1b[?47h\x1b[?25l"); // save the screen and cursor location
+	clear();
+    struct termios term;
+    tcgetattr(fileno(stdin), &term);
+    term.c_lflag &= ~(LFLAGS); // remove the LFLAGS
+    tcsetattr(fileno(stdin), 0, &term);
+	flush_all();
+}
+void end(uint8_t do_render) {
+	if (!began) return;
+	began = 0;
+    struct termios term;
+	clear();
+	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
+	if (do_render) render(1);
+    tcgetattr(fileno(stdin), &term);
+    term.c_lflag |= LFLAGS; // add the LFLAGS
+    tcsetattr(fileno(stdin), 0, &term);
+	flush_all();
+	system("stty sane"); // set to normal mode
+}
+void end_and_exit() {
+	end(1);
+	exit(0);
+}
+void tstp() {
+	bell();
+	end(0);
+	raise(SIGSTOP); // raise SIGSTOP which cannot be caught and actually does the suspend
+}
+void cont() {
+	bell();
+	begin();
+}
+
 uint8_t is_placing() { // returns 1 if there are tiles in place
 	for     (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
@@ -147,8 +194,15 @@ void set_next_piece(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) {
 	next_piece_i  = I;
 	next_piece_j  = J;
 }
-void random_next_piece() {
-	uint8_t t = getc(rng) % 7; // the only time rng is used
+uint8_t random_next_piece() {
+	int t_ = fgetc(rng); // the only time rng is used
+	if (t_ == EOF) {
+		end(1);
+		fprintf(stderr, "RNG file has ended\n");
+		exit(2);
+		return 0;
+	}
+	uint8_t t = t_ % 7;
 	if (t == 0) set_next_piece(ID_I, piece_i, I_I, J_I);
 	if (t == 1) set_next_piece(ID_J, piece_j, I_J, J_J);
 	if (t == 2) set_next_piece(ID_L, piece_l, I_L, J_L);
@@ -156,6 +210,7 @@ void random_next_piece() {
 	if (t == 4) set_next_piece(ID_S, piece_s, I_S, J_S);
 	if (t == 5) set_next_piece(ID_T, piece_t, I_T, J_T);
 	if (t == 6) set_next_piece(ID_Z, piece_z, I_Z, J_Z);
+	return 1;
 }
 
 uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
@@ -340,52 +395,6 @@ unsigned char poll_() { // check if there is something buffered in stdin
 	fds.events = POLLIN;
 	ret = poll(&fds, 1, 0);
 	return ret;
-}
-uint8_t began = 0;
-void clear() {
-	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
-}
-void flush_all() 
-{
-	fflush(stdin); fflush(stdout); fflush(stderr);
-}
-void begin() {
-	if (began) return;
-	began = 1;
-	system("stty raw"); // set to raw mode
-	printf("\x1b[s\x1b[?47h\x1b[?25l"); // save the screen and cursor location
-	clear();
-    struct termios term;
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag &= ~(LFLAGS); // remove the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-}
-void end(uint8_t do_render) {
-	if (!began) return;
-	began = 0;
-    struct termios term;
-	clear();
-	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
-	if (do_render) render(1);
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag |= LFLAGS; // add the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-	system("stty sane"); // set to normal mode
-}
-void end_and_exit() {
-	end(1);
-	exit(0);
-}
-void tstp() {
-	bell();
-	end(0);
-	raise(SIGSTOP); // raise SIGSTOP which cannot be caught and actually does the suspend
-}
-void cont() {
-	bell();
-	begin();
 }
 
 int main() {
