@@ -46,6 +46,10 @@ void bell() {
 	fprintf(stderr, "\a"); // \a is bell character, stderr is usually non buffered so we can bell after end()
 #endif
 }
+void sleep_(unsigned long ms) {
+	struct timespec r = { ms/1e3, (ms%1000)*1e6 }; // 1 millisecond = 1e6 nanoseonds
+	nanosleep(&r, NULL);
+}
 
 char* score_string;
 size_t score_len;
@@ -109,8 +113,9 @@ void render(uint8_t end) {
 \x1b[7mA\x1b[27m to move left\r\n\
 \x1b[7mD\x1b[27m to move right\r\n\
 \x1b[7mS\x1b[27m to move down quicker\r\n\
-\x1b[7mQ\x1b[27m to rotate anti-clockwise\r\n\
-\x1b[7mE\x1b[27m to rotate clockwise\r\n\
+\x1b[7mQ\x1b[27m to rotate -90°\r\n\
+\x1b[7mW\x1b[27m to rotate 180°\r\n\
+\x1b[7mE\x1b[27m to rotate 90°\r\n\
 \x1b[7mSpace\x1b[27m to drop instantly\r\n\
 ");
 	}
@@ -200,7 +205,8 @@ void rotate_reverse(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // rev
 }
 uint8_t rotate(int8_t a) {
 	if (a == 0) return 1;
-	if (a != -1 && a != 1) return 0;
+	if (a == -2) a = 2;
+	if (a != -1 && a != 1 && a != 2) return 0;
 	uint8_t si1 = UINT8_MAX;
 	uint8_t sj1 = UINT8_MAX;
 	uint8_t si2 = UINT8_MAX;
@@ -217,12 +223,14 @@ uint8_t rotate(int8_t a) {
 	if (si1 + (sj2 - sj1) >= GAME_I) return 0; // check if in bounds
 	if (sj1 + (si2 - si1) >= GAME_J) return 0;
 	copy_cells(place_indicator, place);
-	if (a == 1) rotate_reverse(si1, sj1, si2, sj2);
-	rotate_flip_ij(si1, sj1, si2, sj2);
-	uint8_t tmp = (sj2-sj1)+si1; // update i and j
-	sj2 = (si2-si1)+sj1;
-	si2 = tmp;
-	if (a != 1) rotate_reverse(si1, sj1, si2, sj2);
+	for (uint8_t r = 0; r < (a == 2 ? 2 : 1); ++r) {
+		if (a > 0) rotate_reverse(si1, sj1, si2, sj2);
+		rotate_flip_ij(si1, sj1, si2, sj2);
+		uint8_t tmp = (sj2-sj1)+si1; // update i and j
+		sj2 = (si2-si1)+sj1;
+		si2 = tmp;
+	}
+	if (a == -1) rotate_reverse(si1, sj1, si2, sj2);
 	for     (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place_indicator[i][j] && board[i][j]) return 0; // check there aren't tiles there on the board already 
@@ -261,7 +269,7 @@ uint8_t place_to_board() { // apply place to board
 			}
 	return g;
 }
-uint8_t check_full_lines() { // WIP
+uint8_t check_full_lines() {
 	uint8_t full;
 	uint8_t all_not_full = 0;
 	uint8_t lines_cleared = 0;
@@ -289,12 +297,19 @@ uint8_t check_full_lines() { // WIP
 	return lines_cleared;
 }
 void add_score(uint8_t lines_cleared) {
-	if (lines_cleared == 0);
+	if (lines_cleared == 0) return;
 	else if (lines_cleared == 1) score += 100;
 	else if (lines_cleared == 2) score += 300;
 	else if (lines_cleared == 3) score += 500;
 	else if (lines_cleared == 4) score += 800;
 	else score += 1000;
+	if (fork() == 0) {
+		for (uint8_t i = 0; i < lines_cleared; ++i) {
+			if (i > 0) sleep_(150); // do beep pattern
+			bell();
+		}
+		exit(0);
+	}
 }
 
 uint8_t move_timer = 0;
@@ -318,10 +333,6 @@ void drop() { // move_down until it hits something
 	} while (res);
 }
 
-void sleep_(unsigned long ms) {
-	struct timespec r = { ms/1e3, (ms%1000)*1e6 }; // 1 millisecond = 1e6 nanoseonds
-	nanosleep(&r, NULL);
-}
 unsigned char poll_() { // check if there is something buffered in stdin
 	struct pollfd fds;
 	unsigned char ret;
@@ -334,7 +345,8 @@ uint8_t began = 0;
 void clear() {
 	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
 }
-void flush_all() {
+void flush_all() 
+{
 	fflush(stdin); fflush(stdout); fflush(stderr);
 }
 void begin() {
@@ -353,12 +365,12 @@ void end(uint8_t do_render) {
 	if (!began) return;
 	began = 0;
     struct termios term;
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag |= LFLAGS; // add the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
 	clear();
 	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
 	if (do_render) render(1);
+    tcgetattr(fileno(stdin), &term);
+    term.c_lflag |= LFLAGS; // add the LFLAGS
+    tcsetattr(fileno(stdin), 0, &term);
 	flush_all();
 	system("stty sane"); // set to normal mode
 }
@@ -426,6 +438,7 @@ int main() {
 			else if (c == 'd' || c == 'D') { move(0,  1); move_indicator(); }
 			else if (c == 's' || c == 'S') { move_down(); } // no need to move_indicator here
 			else if (c == 'q' || c == 'Q') { rotate(-1); move_indicator(); }
+			else if (c == 'w' || c == 'W') { rotate( 2); move_indicator(); }
 			else if (c == 'e' || c == 'E') { rotate( 1); move_indicator(); }
 			else ignore = 1;
 		}
