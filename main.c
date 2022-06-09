@@ -305,7 +305,7 @@ void add_score(uint8_t lines_cleared) {
 	else score += 1000;
 	if (fork() == 0) {
 		for (uint8_t i = 0; i < lines_cleared; ++i) {
-			if (i > 0) sleep_(150); // do beep pattern
+			sleep_(150); // do beep pattern
 			bell();
 		}
 		exit(0);
