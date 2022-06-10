@@ -125,8 +125,7 @@ uint8_t began = 0;
 void clear() {
 	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
 }
-void flush_all() 
-{
+void flush_all() {
 	fflush(stdin); fflush(stdout); fflush(stderr);
 }
 void begin() {
