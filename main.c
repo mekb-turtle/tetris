@@ -274,8 +274,10 @@ uint8_t rotate(int8_t a) {
 				if (sj2 == UINT8_MAX || j > sj2) sj2 = j; // find highest j
 			}
 	if (si1 == UINT8_MAX || sj1 == UINT8_MAX || si2 == UINT8_MAX || sj2 == UINT8_MAX) return 1;
-	if (si1 + (sj2 - sj1) >= GAME_I) return 0; // check if in bounds
-	if (sj1 + (si2 - si1) >= GAME_J) return 0;
+	if (a < 2) {
+		if (si1 + (sj2 - sj1) >= GAME_I) return 0; // check if in bounds
+		if (sj1 + (si2 - si1) >= GAME_J) return 0;
+	}
 	copy_cells(place_indicator, place);
 	for (uint8_t r = 0; r < (a == 2 ? 2 : 1); ++r) {
 		if (a > 0) rotate_reverse(si1, sj1, si2, sj2);
