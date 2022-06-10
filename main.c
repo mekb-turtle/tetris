@@ -67,13 +67,13 @@ void render(uint8_t end) {
 		for (uint8_t j = 0; j < GAME_J; ++j) {
 			char* col = NULL;
 			printf(RESET);
-			if        (col = get_color(board[i][j])) {
+			if        ((col = get_color(board[i][j]))) {
 				printf(col);
 				printf(BOARD_CHAR);
-			} else if (col = get_color(place[i][j])) {
+			} else if ((col = get_color(place[i][j]))) {
 				printf(col);
 				printf(PLACE_CHAR);
-			} else if (col = get_color(place_indicator[i][j])) {
+			} else if ((col = get_color(place_indicator[i][j]))) {
 				printf(col);
 				printf(INDICATOR_CHAR);
 			} else {
