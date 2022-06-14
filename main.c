@@ -57,59 +57,56 @@ size_t score_len;
 void render(uint8_t end) {
 	if (!end) printf("\x1b[H"); // goto 0,0
 	for (uint8_t j = 0; j < GAME_J+3+next_piece_j;       ++j) printf(BORDER);
-	printf(RESET);
+	printf("%s", RESET);
 	for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
 	printf("\r\n");
 	sprintf(score_string, " %li %c", score, '\0');
 	score_len = strlen(score_string);
 	for (uint8_t i = 0; i < GAME_I; ++i) {
-		printf(BORDER RESET);
+		printf("%s", BORDER RESET);
 		for (uint8_t j = 0; j < GAME_J; ++j) {
 			char* col = NULL;
-			printf(RESET);
-			if        ((col = get_color(board[i][j]))) {
-				printf(col);
-				printf(BOARD_CHAR);
-			} else if ((col = get_color(place[i][j]))) {
-				printf(col);
-				printf(PLACE_CHAR);
-			} else if ((col = get_color(place_indicator[i][j]))) {
-				printf(col);
-				printf(INDICATOR_CHAR);
+			printf("%s", RESET);
+			if        (col = get_color(board[i][j])) {
+				printf("\x1b[38;5;%sm%s", col, BOARD_CHAR);
+			} else if (col = get_color(place[i][j])) {
+				printf("\x1b[38;5;%sm%s", col, PLACE_CHAR);
+			} else if (col = get_color(place_indicator[i][j])) {
+				printf("\x1b[38;5;%sm%s", col, INDICATOR_CHAR);
 			} else {
-				printf(EMPTY_CHAR);
+				printf("%s", EMPTY_CHAR);
 			}
 		}
-		printf(BORDER);
+		printf("%s", BORDER);
 		if (i == GAME_I - 1) {
-			printf(RESET "%s" BORDER, score_string); // print score
+			printf("%s%s%s", RESET, score_string, BORDER); // print score
 		} else if (i == GAME_I - 2) {
-			printf(BORDER);
+			printf("%s", BORDER);
 			for (uint8_t j = 0; j < score_len; ++j)
-				printf(BORDER_ONE);
+				printf("%s", BORDER_ONE);
 		} else if (i == next_piece_i) {
-			for (uint8_t j = 0; j < next_piece_j+1; ++j) printf(BORDER);
-			printf(RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
+			for (uint8_t j = 0; j < next_piece_j+1; ++j) printf("%s", BORDER);
+			printf("%s", RESET);
+			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf("%s", EMPTY_CHAR);
 		} else if (i > next_piece_i) {
-			printf(RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER;                ++j) printf(EMPTY_CHAR);
+			printf("%s", RESET);
+			for (uint8_t j = 0; j < CLEAR_BORDER;                ++j) printf("%s", EMPTY_CHAR);
 		} else {
-			printf(RESET);
-			printf(get_color(next_piece_id));
+			printf("%s", RESET);
+			printf("\x1b[38;5;%sm", get_color(next_piece_id));
 			for (uint8_t j = 0; j < next_piece_j; ++j) {
-				printf(next_piece[i][j] ? NEXT_CHAR : EMPTY_CHAR); // print the tile
+				printf("%s", next_piece[i][j] ? NEXT_CHAR : EMPTY_CHAR); // print the tile
 			}
-			printf(BORDER RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
+			printf("%s", BORDER RESET);
+			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf("%s", EMPTY_CHAR);
 		}
 		printf("\r\n");
 	}
-	for     (uint8_t j = 0; j < GAME_J+3; ++j) printf(BORDER);
-	for     (uint8_t j = 0; j < score_len; ++j) printf(BORDER_ONE);
-	printf(RESET "\r\n");
+	for     (uint8_t j = 0; j < GAME_J+3; ++j) printf("%s", BORDER);
+	for     (uint8_t j = 0; j < score_len; ++j) printf("%s", BORDER_ONE);
+	printf("%s\r\n", RESET);
 	if (!end) {
-		printf("\r\n\
+		printf("%s", "\r\n\
 \x1b[7mA\x1b[27m to move left\r\n\
 \x1b[7mD\x1b[27m to move right\r\n\
 \x1b[7mS\x1b[27m to move down quicker\r\n\
@@ -167,6 +164,17 @@ void cont() {
 	begin();
 }
 
+void copy_cells(uint8_t a[GAME_I][GAME_J], uint8_t b[GAME_I][GAME_J]) { // copy all cells from b to a
+	for     (uint8_t i = 0; i < GAME_I; ++i)
+		for (uint8_t j = 0; j < GAME_J; ++j)
+			a[i][j] = b[i][j];
+}
+void set_cells(uint8_t a[GAME_I][GAME_J], uint8_t b) { // set all cells in a to b
+	for     (uint8_t i = 0; i < GAME_I; ++i)
+		for (uint8_t j = 0; j < GAME_J; ++j)
+			a[i][j] = b;
+}
+
 uint8_t is_placing() { // returns 1 if there are tiles in place
 	for     (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
@@ -176,13 +184,18 @@ uint8_t is_placing() { // returns 1 if there are tiles in place
 void add_block(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) { // puts a piece on place
 	uint8_t i_ = 0;
 	uint8_t j_ = (GAME_J-J)/2;
-	for     (uint8_t i = 0; i < I; ++i)
-		for (uint8_t j = 0; j < J; ++j)
+	for     (uint8_t i = 0; i < I; ++i) {
+		for (uint8_t j = 0; j < J; ++j) {
 			if (piece[i][j]) {
-				if (board[i_+i][j_+j])
+				if (board[i_+i][j_+j]) {
 					game_over = 1; // game over if there's already a tile in the board there
+					set_cells(place, 0);
+					return;
+				}
 				place[i_+i][j_+j] = id;
 			}
+		}
+	}
 }
 void add_next_piece() {
 	add_block(next_piece_id, next_piece, next_piece_i, next_piece_j);
@@ -213,6 +226,7 @@ uint8_t random_next_piece() {
 }
 
 uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
+	if (!is_placing()) return 0;
 	if (move_i == 0 && move_j == 0) return 1; // not moving anywhere
 	if (move_i < -1 || move_i > 1 || move_j < -1 || move_j > 1) return 0; // invalid number
 	for     (uint8_t i = 0; i < GAME_I; ++i)
@@ -233,16 +247,6 @@ uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
 			}
 	return 1;
 }
-void copy_cells(uint8_t a[GAME_I][GAME_J], uint8_t b[GAME_I][GAME_J]) { // copy all cells from b to a
-	for     (uint8_t i = 0; i < GAME_I; ++i)
-		for (uint8_t j = 0; j < GAME_J; ++j)
-			a[i][j] = b[i][j];
-}
-void set_cells(uint8_t a[GAME_I][GAME_J], uint8_t b) { // set all cells in a to b
-	for     (uint8_t i = 0; i < GAME_I; ++i)
-		for (uint8_t j = 0; j < GAME_J; ++j)
-			a[i][j] = b;
-}
 void rotate_flip_ij(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // flip the i and j around
 	set_cells(temp, 0);
 	for     (uint8_t i = si1; i <= si2; ++i)
@@ -258,6 +262,7 @@ void rotate_reverse(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // rev
 	copy_cells(place_indicator, temp);
 }
 uint8_t rotate(int8_t a) {
+	if (!is_placing()) return 0;
 	if (a == 0) return 1;
 	if (a == -2) a = 2;
 	if (a != -1 && a != 1 && a != 2) return 0;
@@ -294,6 +299,7 @@ uint8_t rotate(int8_t a) {
 	return 0;
 }
 uint8_t move_indicator() { // move place_indicator down until it hits something
+	if (!is_placing()) return 0;
 	copy_cells(place_indicator, place);
 	uint8_t break_ = 0;
 	while (!break_) {
@@ -376,8 +382,10 @@ uint8_t move_down() { // move place down
 		place_to_board();
 		add_score(check_full_lines());
 		add_next_piece();
-		random_next_piece();
-		move_indicator();
+		if (!game_over) {
+			random_next_piece();
+			move_indicator();
+		}
 		return 0;
 	}
 	return 1;

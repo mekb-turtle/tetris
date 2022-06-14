@@ -58,13 +58,13 @@ void create_pieces() { // i tried using arrays but they don't work with some oth
 	piece_z[0][1] = piece_z[1][0] = piece_z[1][1] = piece_z[2][0] = 1;
 }
 
-#define COLOR_I "\x1b[38;5;14m"
-#define COLOR_J "\x1b[38;5;12m"
-#define COLOR_L "\x1b[38;5;3m"
-#define COLOR_O "\x1b[38;5;11m"
-#define COLOR_S "\x1b[38;5;10m"
-#define COLOR_T "\x1b[38;5;13m"
-#define COLOR_Z "\x1b[38;5;9m"
+#define COLOR_I "14"
+#define COLOR_J "12"
+#define COLOR_L "3"
+#define COLOR_O "11"
+#define COLOR_S "10"
+#define COLOR_T "13"
+#define COLOR_Z "9"
 
 // do not put 0, it is treated as no block
 #define ID_I 1
