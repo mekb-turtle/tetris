@@ -102,8 +102,8 @@ void render(uint8_t end) {
 		}
 		printf("\r\n");
 	}
-	for     (uint8_t j = 0; j < GAME_J+3; ++j) printf("%s", BORDER);
-	for     (uint8_t j = 0; j < score_len; ++j) printf("%s", BORDER_ONE);
+	for (uint8_t j = 0; j < GAME_J+3; ++j) printf("%s", BORDER);
+	for (uint8_t j = 0; j < score_len; ++j) printf("%s", BORDER_ONE);
 	printf("%s\r\n", RESET);
 	if (!end) {
 		printf("%s", "\r\n\
@@ -165,18 +165,18 @@ void cont() {
 }
 
 void copy_cells(uint8_t a[GAME_I][GAME_J], uint8_t b[GAME_I][GAME_J]) { // copy all cells from b to a
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			a[i][j] = b[i][j];
 }
 void set_cells(uint8_t a[GAME_I][GAME_J], uint8_t b) { // set all cells in a to b
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			a[i][j] = b;
 }
 
 uint8_t is_placing() { // returns 1 if there are tiles in place
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place[i][j] != 0) return 1;
 	return 0;
@@ -184,7 +184,7 @@ uint8_t is_placing() { // returns 1 if there are tiles in place
 void add_block(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) { // puts a piece on place
 	uint8_t i_ = 0;
 	uint8_t j_ = (GAME_J-J)/2;
-	for     (uint8_t i = 0; i < I; ++i) {
+	for (uint8_t i = 0; i < I; ++i) {
 		for (uint8_t j = 0; j < J; ++j) {
 			if (piece[i][j]) {
 				if (board[i_+i][j_+j]) {
@@ -229,7 +229,7 @@ uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
 	if (!is_placing()) return 0;
 	if (move_i == 0 && move_j == 0) return 1; // not moving anywhere
 	if (move_i < -1 || move_i > 1 || move_j < -1 || move_j > 1) return 0; // invalid number
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place[i][j]) {
 				if (move_i < 0 && i == 0) return 0;
@@ -239,7 +239,7 @@ uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
 				if (board[i+move_i][j+move_j]) return 0; // check there aren't tiles there on the board already
 			}
 	// find which way to loop
-	for     (uint8_t i = move_i >= 0 ? GAME_I - 1 : 0; move_i >= 0 ? (i >= 0 && i != UINT8_MAX) : i < GAME_I; i += move_i >= 0 ? -1 : 1)
+	for (uint8_t i = move_i >= 0 ? GAME_I - 1 : 0; move_i >= 0 ? (i >= 0 && i != UINT8_MAX) : i < GAME_I; i += move_i >= 0 ? -1 : 1)
 		for (uint8_t j = move_j >= 0 ? GAME_J - 1 : 0; move_j >= 0 ? (j >= 0 && j != UINT8_MAX) : j < GAME_J; j += move_j >= 0 ? -1 : 1)
 			if (place[i][j]) {
 				place[i+move_i][j+move_j] = place[i][j];
@@ -249,14 +249,14 @@ uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
 }
 void rotate_flip_ij(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // flip the i and j around
 	set_cells(temp, 0);
-	for     (uint8_t i = si1; i <= si2; ++i)
+	for (uint8_t i = si1; i <= si2; ++i)
 		for (uint8_t j = sj1; j <= sj2; ++j)
 			temp[j-sj1+si1][i-si1+sj1] = place_indicator[i][j];
 	copy_cells(place_indicator, temp);
 }
 void rotate_reverse(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // reverse
 	set_cells(temp, 0);
-	for     (uint8_t i = si1; i <= si2; ++i)
+	for (uint8_t i = si1; i <= si2; ++i)
 		for (uint8_t j = sj1; j <= sj2; ++j)
 			temp[((si2-si1)-(i-si1))+si1][j] = place_indicator[i][j];
 	copy_cells(place_indicator, temp);
@@ -270,7 +270,7 @@ uint8_t rotate(int8_t a) {
 	uint8_t sj1 = UINT8_MAX;
 	uint8_t si2 = UINT8_MAX;
 	uint8_t sj2 = UINT8_MAX;
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place[i][j]) {
 				if (si1 == UINT8_MAX || i < si1) si1 = i; // find lowest i
@@ -292,7 +292,7 @@ uint8_t rotate(int8_t a) {
 		si2 = tmp;
 	}
 	if (a == -1) rotate_reverse(si1, sj1, si2, sj2);
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place_indicator[i][j] && board[i][j]) return 0; // check there aren't tiles there on the board already 
 	copy_cells(place, place_indicator);
@@ -303,14 +303,14 @@ uint8_t move_indicator() { // move place_indicator down until it hits something
 	copy_cells(place_indicator, place);
 	uint8_t break_ = 0;
 	while (!break_) {
-		for     (uint8_t i = 0; !break_ && i < GAME_I; ++i)
+		for (uint8_t i = 0; !break_ && i < GAME_I; ++i)
 			for (uint8_t j = 0; !break_ && j < GAME_J; ++j)
 				if (place_indicator[i][j]) {
 					if (i >= GAME_I-1) { break_ = 1; break; }
 					if (board[i+1][j]) { break_ = 1; break; }
 				}
 		if (break_) break;
-		for     (uint8_t i = GAME_I - 1; i >= 0 && i != UINT8_MAX; --i)
+		for (uint8_t i = GAME_I - 1; i >= 0 && i != UINT8_MAX; --i)
 			for (uint8_t j = 0; j < GAME_J; ++j)
 				if (place_indicator[i][j]) {
 					place_indicator[i+1][j] = place_indicator[i][j];
@@ -322,7 +322,7 @@ uint8_t move_indicator() { // move place_indicator down until it hits something
 
 uint8_t place_to_board() { // apply place to board
 	uint8_t g = 0;
-	for     (uint8_t i = 0; i < GAME_I; ++i)
+	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place[i][j]) {
 				board[i][j] = place[i][j];
@@ -333,26 +333,20 @@ uint8_t place_to_board() { // apply place to board
 }
 uint8_t check_full_lines() {
 	uint8_t full;
-	uint8_t all_not_full = 0;
 	uint8_t lines_cleared = 0;
-	while (!all_not_full) {
-		all_not_full = 1;
-		for (uint8_t i = 0; i < GAME_I; ++i) {
-			full = 1;
+	for (uint8_t i = 0; i < GAME_I; ++i) {
+		full = 1;
+		for (uint8_t j = 0; j < GAME_J; ++j) {
+			if (!board[i][j]) { full = 0; break; }
+		}
+		if (!full) continue;
+		++lines_cleared;
+		for (uint8_t k = i; k >= 0 && k != UINT8_MAX; --k) {
 			for (uint8_t j = 0; j < GAME_J; ++j) {
-				if (!board[i][j]) { full = 0; break; }
-			}
-			if (full) {
-				++lines_cleared;
-				all_not_full = 0;
-				for (uint8_t k = i; k >= 0 && k != UINT8_MAX; --k) {
-					for (uint8_t j = 0; j < GAME_J; ++j) {
-						if (k == 0)
-							board[k][j] = 0;
-						else
-							board[k][j] = board[k-1][j];
-					}
-				}
+				if (k == 0)
+					board[k][j] = 0;
+				else
+					board[k][j] = board[k-1][j];
 			}
 		}
 	}
