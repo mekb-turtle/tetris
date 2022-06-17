@@ -75,6 +75,9 @@ void create_pieces() { // i tried using arrays but they don't work with some oth
 #define ID_T 6
 #define ID_Z 7
 
+// above IDs must range from 1 to NUM_PIECES, NUM_PIECES cannot be above UINT8_MAX or above, nor below 1
+#define NUM_PIECES 7
+
 char* get_color(uint8_t col) {
 	if      (col == ID_I) return COLOR_I;
 	else if (col == ID_J) return COLOR_J;

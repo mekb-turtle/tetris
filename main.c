@@ -9,16 +9,36 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
-#define RANDOM_FILE "/dev/urandom" // file to read random bytes from for rng
+// game constants
 #define DELAY 5 // how many ms every tick is
 #define MOVE_EVERY 60 // how many delays to move down by one
 #define GAME_I 20 // board height
 #define GAME_J 10 // board width
-#define BELL // comment out if you don't want a bell
+
+// pieces
+#include "./tetrominos.h"
+#define RANDOM_FILE "/dev/urandom" // file to read random bytes from for rng
+//#define FORCE_PIECE ID_I // uncomment and set to ID_<piece> to force a piece to spawn instead of reading from RANDOM_FILE
+
+// rendering
+//#define BELL fprintf(stderr, "\a") // uncomment if you want a bell for most actions
+#define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
+#define CLEAR_BORDER    7 // needs to be at least the maximum j of all tetrominos
+#define COLOR_BORDER    "\x1b[38;5;8m" // the color sequence of the border
+#define RESET           "\x1b[0m" // reset sequence
+#define BOARD_CHAR      "██"
+#define PLACE_CHAR      "██"
+#define NEXT_CHAR       "██"
+#define INDICATOR_CHAR  "▒▒"
+#define BORDER_CHAR     "▒▒"
+#define BORDER_CHAR_ONE "▒"
+#define EMPTY_CHAR      "  "
+#define BORDER RESET COLOR_BORDER BORDER_CHAR
+#define BORDER_ONE RESET COLOR_BORDER BORDER_CHAR_ONE
+
+// game variables
 long score = 0;
 uint8_t game_over = 0; // flag for game over
-FILE* rng;
 uint8_t place_indicator[GAME_I][GAME_J]; // indicator for when dropping, also used as a temp for rotate
 uint8_t temp[GAME_I][GAME_J]; // temp for rotate
 uint8_t board[GAME_I][GAME_J]; // board
@@ -27,25 +47,8 @@ uint8_t next_piece_id; // the id of the next piece to be placed
 uint8_t** next_piece; // the array of the next piece to be placed
 uint8_t next_piece_i; // height of next piece to be placed
 uint8_t next_piece_j; // width of next piece to be placed
-#include "./tetrominos.h"
-#define CLEAR_BORDER 7 // needs to be at least the maximum j of all tetrominos
-#define COLOR_BORDER "\x1b[38;5;8m" // the color sequence of the border
-#define RESET "\x1b[0m" // reset sequence
-#define BOARD_CHAR "██"
-#define PLACE_CHAR "██"
-#define NEXT_CHAR "██"
-#define INDICATOR_CHAR "▒▒"
-#define BORDER_CHAR "▒▒"
-#define BORDER_CHAR_ONE "▒"
-#define EMPTY_CHAR "  "
-#define BORDER RESET COLOR_BORDER BORDER_CHAR
-#define BORDER_ONE RESET COLOR_BORDER BORDER_CHAR_ONE
+FILE* rng;
 
-void bell() {
-#ifdef BELL
-	fprintf(stderr, "\a"); // \a is bell character, stderr is usually non buffered so we can bell after end()
-#endif
-}
 void sleep_(unsigned long ms) {
 	struct timespec r = { ms/1e3, (ms%1000)*1e6 }; // 1 millisecond = 1e6 nanoseonds
 	nanosleep(&r, NULL);
@@ -155,12 +158,16 @@ void end_and_exit() {
 	exit(0);
 }
 void tstp() {
-	bell();
+#ifdef BELL
+	BELL;
+#endif
 	end(0);
 	raise(SIGSTOP); // raise SIGSTOP which cannot be caught and actually does the suspend
 }
 void cont() {
-	bell();
+#ifdef BELL
+	BELL;
+#endif
 	begin();
 }
 
@@ -207,21 +214,32 @@ void set_next_piece(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) {
 	next_piece_j  = J;
 }
 uint8_t random_next_piece() {
-	int t_ = fgetc(rng); // the only time rng is used
-	if (t_ == EOF) {
-		end(1);
-		fprintf(stderr, "RNG file has ended\n");
-		exit(2);
-		return 0;
+#ifndef FORCE_PIECE
+	// this code reads 2 bytes and combines them, e.g 0x5f 0x3a becomes 0x5f3a, this is to lower the chance of having a bias when moduloing it
+	uint16_t t__ = 0; // higher the random number means it's less likely to lower the chance of excluding the remainder piece IDs if it doesn't round up perfectly to max + 1
+	int t_;           // e.g 256/7 = 36 and 4 remainder, so 7-4 = 3, a tiny chance of 3 pieces can be left out
+	for (uint8_t i = 0; i < 2; ++i) { // use i < 1 if uint8_t t__, i < 2 if uint16_t t__, i < 4 if uint32_t t__, or i < 8 if uint64_t t__
+		t_ = fgetc(rng); // the only time rng is used
+		if (t_ == EOF) {
+			end(1);
+			fprintf(stderr, "RNG file has ended\n");
+			exit(2);
+			return 0;
+		}
+		t__ <<= 8; // shift left
+		t__ |= t_&0xff; // xor
 	}
-	uint8_t t = t_ % 7;
-	if (t == 0) set_next_piece(ID_I, piece_i, I_I, J_I);
-	if (t == 1) set_next_piece(ID_J, piece_j, I_J, J_J);
-	if (t == 2) set_next_piece(ID_L, piece_l, I_L, J_L);
-	if (t == 3) set_next_piece(ID_O, piece_o, I_O, J_O);
-	if (t == 4) set_next_piece(ID_S, piece_s, I_S, J_S);
-	if (t == 5) set_next_piece(ID_T, piece_t, I_T, J_T);
-	if (t == 6) set_next_piece(ID_Z, piece_z, I_Z, J_Z);
+	uint8_t t = (t__ % NUM_PIECES) + 1;
+#else
+	uint8_t t = FORCE_PIECE;
+#endif
+	if (t == ID_I) set_next_piece(ID_I, piece_i, I_I, J_I);
+	if (t == ID_J) set_next_piece(ID_J, piece_j, I_J, J_J);
+	if (t == ID_L) set_next_piece(ID_L, piece_l, I_L, J_L);
+	if (t == ID_O) set_next_piece(ID_O, piece_o, I_O, J_O);
+	if (t == ID_S) set_next_piece(ID_S, piece_s, I_S, J_S);
+	if (t == ID_T) set_next_piece(ID_T, piece_t, I_T, J_T);
+	if (t == ID_Z) set_next_piece(ID_Z, piece_z, I_Z, J_Z);
 	return 1;
 }
 
@@ -354,25 +372,28 @@ uint8_t check_full_lines() {
 }
 void add_score(uint8_t lines_cleared) {
 	if (lines_cleared == 0) return;
-	else if (lines_cleared == 1) score += 100;
-	else if (lines_cleared == 2) score += 300;
-	else if (lines_cleared == 3) score += 500;
-	else if (lines_cleared == 4) score += 800;
-	else score += 1000;
+	else if (lines_cleared == 1) score += 1;
+	else if (lines_cleared == 2) score += 3;
+	else if (lines_cleared == 3) score += 5;
+	else score += 8;
+#ifdef BELL
 	if (fork() == 0) {
 		for (uint8_t i = 0; i < lines_cleared; ++i) {
 			sleep_(150); // do beep pattern
-			bell();
+			BELL;
 		}
 		exit(0);
 	}
+#endif
 }
 
 uint8_t move_timer = 0;
 uint8_t move_down() { // move place down
 	if (!move(1, 0)) { // if it hits something
 		move_timer = 0;
-		bell();
+#ifdef BELL
+		BELL;
+#endif
 		place_to_board();
 		add_score(check_full_lines());
 		add_next_piece();
@@ -404,11 +425,13 @@ int main() {
 	if (!isatty(fileno(stdout))) { fprintf(stderr, "stdout is not a tty\n"); return 9; }
 	if (!isatty(fileno(stderr))) { fprintf(stderr, "stderr is not a tty\n"); return 9; }
 	if (!isatty(fileno(stdin ))) { fprintf(stderr, "stdin is not a tty\n");  return 9; }
+#ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
 		fprintf(stderr, "%s: %s", RANDOM_FILE, strerror(errno)); // error if can't open RANDOM_FILE
 		return 1;
 	}
+#endif
 	create_pieces();
 	begin();
 	signal(SIGINT,  end_and_exit);
@@ -424,7 +447,9 @@ int main() {
 	add_next_piece();
 	random_next_piece();
 	move_indicator();
-	bell();
+#ifdef BELL
+	BELL;
+#endif
 	score_string = malloc(24);
 	uint8_t ignore;
 	while (1) {
@@ -458,13 +483,15 @@ int main() {
 		if (game_over) {
 			end(1);
 			printf("Game Over!\n");
+#ifdef BELL
 			if (fork() == 0) {
 				for (uint8_t i = 0; i < 4; ++i) {
 					if (i > 0) sleep_(150); // do beep pattern
-					bell();
+					BELL;
 				}
 				return 0;
 			}
+#endif
 			return 0;
 		}
 		sleep_(DELAY);
