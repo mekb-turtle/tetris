@@ -215,19 +215,16 @@ void set_next_piece(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) {
 }
 uint8_t random_next_piece() {
 #ifndef FORCE_PIECE
-	// this code reads 2 bytes and combines them, e.g 0x5f 0x3a becomes 0x5f3a, this is to lower the chance of having a bias when moduloing it
-	uint16_t t__ = 0; // higher the random number means it's less likely to lower the chance of excluding the remainder piece IDs if it doesn't round up perfectly to max + 1
-	int t_;           // e.g 256/7 = 36 and 4 remainder, so 7-4 = 3, a tiny chance of 3 pieces can be left out
-	for (uint8_t i = 0; i < 2; ++i) { // use i < 1 if uint8_t t__, i < 2 if uint16_t t__, i < 4 if uint32_t t__, or i < 8 if uint64_t t__
-		t_ = fgetc(rng); // the only time rng is used
+	uint8_t t_;
+	while (1) {
+		t_ = fgetc(rng);
 		if (t_ == EOF) {
 			end(1);
 			fprintf(stderr, "RNG file has ended\n");
 			exit(2);
 			return 0;
 		}
-		t__ <<= 8; // shift left
-		t__ |= t_&0xff; // xor
+		if (t_ < (UINT8_MAX - (UINT8_MAX % NUM_PIECES))) break; // avoid bias
 	}
 	uint8_t t = (t__ % NUM_PIECES) + 1;
 #else
