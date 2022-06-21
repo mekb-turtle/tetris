@@ -171,17 +171,6 @@ void cont() {
 	begin();
 }
 
-void copy_cells(uint8_t a[GAME_I][GAME_J], uint8_t b[GAME_I][GAME_J]) { // copy all cells from b to a
-	for (uint8_t i = 0; i < GAME_I; ++i)
-		for (uint8_t j = 0; j < GAME_J; ++j)
-			a[i][j] = b[i][j];
-}
-void set_cells(uint8_t a[GAME_I][GAME_J], uint8_t b) { // set all cells in a to b
-	for (uint8_t i = 0; i < GAME_I; ++i)
-		for (uint8_t j = 0; j < GAME_J; ++j)
-			a[i][j] = b;
-}
-
 uint8_t is_placing() { // returns 1 if there are tiles in place
 	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
@@ -196,7 +185,7 @@ void add_block(uint8_t id, uint8_t** piece, uint8_t I, uint8_t J) { // puts a pi
 			if (piece[i][j]) {
 				if (board[i_+i][j_+j]) {
 					game_over = 1; // game over if there's already a tile in the board there
-					set_cells(place, 0);
+					memset(place, 0, sizeof(place));
 					return;
 				}
 				place[i_+i][j_+j] = id;
@@ -226,7 +215,7 @@ uint8_t random_next_piece() {
 		}
 		if (t_ < (UINT8_MAX - (UINT8_MAX % NUM_PIECES))) break; // avoid bias
 	}
-	uint8_t t = (t__ % NUM_PIECES) + 1;
+	uint8_t t = (t_ % NUM_PIECES) + 1;
 #else
 	uint8_t t = FORCE_PIECE;
 #endif
@@ -263,18 +252,18 @@ uint8_t move(int8_t move_i, int8_t move_j) { // move in nplace
 	return 1;
 }
 void rotate_flip_ij(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // flip the i and j around
-	set_cells(temp, 0);
+	memset(temp, 0, sizeof(temp));
 	for (uint8_t i = si1; i <= si2; ++i)
 		for (uint8_t j = sj1; j <= sj2; ++j)
 			temp[j-sj1+si1][i-si1+sj1] = place_indicator[i][j];
-	copy_cells(place_indicator, temp);
+	memcpy(place_indicator, temp, sizeof(temp));
 }
 void rotate_reverse(uint8_t si1, uint8_t sj1, uint8_t si2, uint8_t sj2) { // reverse
-	set_cells(temp, 0);
+	memset(temp, 0, sizeof(temp));
 	for (uint8_t i = si1; i <= si2; ++i)
 		for (uint8_t j = sj1; j <= sj2; ++j)
 			temp[((si2-si1)-(i-si1))+si1][j] = place_indicator[i][j];
-	copy_cells(place_indicator, temp);
+	memcpy(place_indicator, temp, sizeof(temp));
 }
 uint8_t rotate(int8_t a) {
 	if (!is_placing()) return 0;
@@ -298,7 +287,7 @@ uint8_t rotate(int8_t a) {
 		if (si1 + (sj2 - sj1) >= GAME_I) return 0; // check if in bounds
 		if (sj1 + (si2 - si1) >= GAME_J) return 0;
 	}
-	copy_cells(place_indicator, place);
+	memcpy(place_indicator, place, sizeof(place));
 	for (uint8_t r = 0; r < (a == 2 ? 2 : 1); ++r) {
 		if (a > 0) rotate_reverse(si1, sj1, si2, sj2);
 		rotate_flip_ij(si1, sj1, si2, sj2);
@@ -310,12 +299,12 @@ uint8_t rotate(int8_t a) {
 	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place_indicator[i][j] && board[i][j]) return 0; // check there aren't tiles there on the board already 
-	copy_cells(place, place_indicator);
+	memcpy(place, place_indicator, sizeof(place));
 	return 0;
 }
 uint8_t move_indicator() { // move place_indicator down until it hits something
 	if (!is_placing()) return 0;
-	copy_cells(place_indicator, place);
+	memcpy(place_indicator, place, sizeof(place));
 	uint8_t break_ = 0;
 	while (!break_) {
 		for (uint8_t i = 0; !break_ && i < GAME_I; ++i)
