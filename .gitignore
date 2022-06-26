@@ -1,3 +1,4 @@
-tetris
-*.o
-*.swp
+bin/
+obj/
+Makefile
+Tetris.make
