@@ -2,7 +2,7 @@ CC=cc
 CFLAGS=-Wall -O2
 LFLAGS=-lm -s
 
-OBJS=main.o
+OBJS=tetris.o
 
 TARGET=tetris
 
