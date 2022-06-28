@@ -63,7 +63,8 @@ void render(uint8_t end) {
 	printf("%s", RESET);
 	for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
 	printf("\r\n");
-	sprintf(score_string, " %li %c", score, '\0');
+	if (score == 0) sprintf(score_string, " 0 %c", '\0');
+	else sprintf(score_string, " %li00 %c", score, '\0');
 	score_len = strlen(score_string);
 	for (uint8_t i = 0; i < GAME_I; ++i) {
 		printf("%s", BORDER RESET);
