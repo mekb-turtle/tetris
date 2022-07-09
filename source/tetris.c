@@ -1,38 +1,33 @@
-#include <stdint.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
-#include <time.h>
-#include <sys/poll.h>
 #include <string.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
+#include <3ds.h>
+#include <string.h>
+#include <time.h>
 
 // game constants
-#define DELAY 5 // how many ms every tick is
-#define MOVE_EVERY 60 // how many delays to move down by one
+#define DELAY 30 // how many ms every tick is
+#define GAME_OVER_DELAY 2000 // how many ms every tick is
+#define MOVE_EVERY 10 // how many delays to move down by one
 #define GAME_I 20 // board height
 #define GAME_J 10 // board width
 
 // pieces
 #include "./tetrominos.h"
-#define RANDOM_FILE "/dev/urandom" // file to read random bytes from for rng
 //#define FORCE_PIECE ID_I // uncomment and set to ID_<piece> to force a piece to spawn instead of reading from RANDOM_FILE
 
 // rendering
-//#define BELL fprintf(stderr, "\a") // uncomment if you want a bell for most actions
-#define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
 #define CLEAR_BORDER    7 // needs to be at least the maximum j of all tetrominos
-#define COLOR_BORDER    "\x1b[38;5;8m" // the color sequence of the border
+#define COLOR_BORDER    "\x1b[48;5;0m" // the color sequence of the border
 #define RESET           "\x1b[0m" // reset sequence
-#define BOARD_CHAR      "██"
-#define PLACE_CHAR      "██"
-#define NEXT_CHAR       "██"
-#define INDICATOR_CHAR  "▒▒"
-#define BORDER_CHAR     "▒▒"
-#define BORDER_CHAR_ONE "▒"
-#define EMPTY_CHAR      "  "
+#define BOARD_CHAR      "#"
+#define PLACE_CHAR      "#"
+#define NEXT_CHAR       "#"
+#define INDICATOR_CHAR  "-"
+#define BORDER_CHAR     " "
+#define BORDER_CHAR_ONE " "
+#define EMPTY_CHAR      " "
 #define BORDER RESET COLOR_BORDER BORDER_CHAR
 #define BORDER_ONE RESET COLOR_BORDER BORDER_CHAR_ONE
 
@@ -47,7 +42,6 @@ uint8_t next_piece_id; // the id of the next piece to be placed
 uint8_t** next_piece; // the array of the next piece to be placed
 uint8_t next_piece_i; // height of next piece to be placed
 uint8_t next_piece_j; // width of next piece to be placed
-FILE* rng;
 
 void sleep_(unsigned long ms) {
 	struct timespec r = { ms/1e3, (ms%1000)*1e6 }; // 1 millisecond = 1e6 nanoseonds
@@ -57,12 +51,12 @@ void sleep_(unsigned long ms) {
 char* score_string;
 size_t score_len;
 
-void render(uint8_t end) {
-	if (!end) printf("\x1b[H"); // goto 0,0
+void render() {
+	printf("\x1b[0;0H");
 	for (uint8_t j = 0; j < GAME_J+3+next_piece_j;       ++j) printf(BORDER);
 	printf("%s", RESET);
 	for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
-	printf("\r\n");
+	printf("\n");
 	if (score == 0) sprintf(score_string, " 0 %c", '\0');
 	else sprintf(score_string, " %li00 %c", score, '\0');
 	score_len = strlen(score_string);
@@ -72,11 +66,11 @@ void render(uint8_t end) {
 			char* col = NULL;
 			printf("%s", RESET);
 			if        (col = get_color(board[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, BOARD_CHAR);
+				printf("\x1b[%sm%s", col, BOARD_CHAR);
 			} else if (col = get_color(place[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, PLACE_CHAR);
+				printf("\x1b[%sm%s", col, PLACE_CHAR);
 			} else if (col = get_color(place_indicator[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, INDICATOR_CHAR);
+				printf("\x1b[%sm%s", col, INDICATOR_CHAR);
 			} else {
 				printf("%s", EMPTY_CHAR);
 			}
@@ -97,79 +91,23 @@ void render(uint8_t end) {
 			for (uint8_t j = 0; j < CLEAR_BORDER;                ++j) printf("%s", EMPTY_CHAR);
 		} else {
 			printf("%s", RESET);
-			printf("\x1b[38;5;%sm", get_color(next_piece_id));
+			printf("\x1b[%sm", get_color(next_piece_id));
 			for (uint8_t j = 0; j < next_piece_j; ++j) {
 				printf("%s", next_piece[i][j] ? NEXT_CHAR : EMPTY_CHAR); // print the tile
 			}
 			printf("%s", BORDER RESET);
 			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf("%s", EMPTY_CHAR);
 		}
-		printf("\r\n");
+		printf("\n");
 	}
 	for (uint8_t j = 0; j < GAME_J+3; ++j) printf("%s", BORDER);
 	for (uint8_t j = 0; j < score_len; ++j) printf("%s", BORDER_ONE);
-	printf("%s\r\n", RESET);
-	if (!end) {
-		printf("%s", "\r\n\
-\x1b[7mA\x1b[27m to move left\r\n\
-\x1b[7mD\x1b[27m to move right\r\n\
-\x1b[7mS\x1b[27m to move down quicker\r\n\
-\x1b[7mQ\x1b[27m to rotate -90°\r\n\
-\x1b[7mW\x1b[27m to rotate 180°\r\n\
-\x1b[7mE\x1b[27m to rotate 90°\r\n\
-\x1b[7mSpace\x1b[27m to drop instantly\r\n\
-");
-	}
+	printf("%s\n", RESET);
 }
 
 uint8_t began = 0;
-void clear() {
-	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
-}
 void flush_all() {
 	fflush(stdin); fflush(stdout); fflush(stderr);
-}
-void begin() {
-	if (began) return;
-	began = 1;
-	system("stty raw"); // set to raw mode
-	printf("\x1b[s\x1b[?47h\x1b[?25l"); // save the screen and cursor location
-	clear();
-    struct termios term;
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag &= ~(LFLAGS); // remove the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-}
-void end(uint8_t do_render) {
-	if (!began) return;
-	began = 0;
-    struct termios term;
-	clear();
-	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
-	if (do_render) render(1);
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag |= LFLAGS; // add the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-	system("stty sane"); // set to normal mode
-}
-void end_and_exit() {
-	end(1);
-	exit(0);
-}
-void tstp() {
-#ifdef BELL
-	BELL;
-#endif
-	end(0);
-	raise(SIGSTOP); // raise SIGSTOP which cannot be caught and actually does the suspend
-}
-void cont() {
-#ifdef BELL
-	BELL;
-#endif
-	begin();
 }
 
 uint8_t is_placing() { // returns 1 if there are tiles in place
@@ -207,10 +145,8 @@ uint8_t random_next_piece() {
 #ifndef FORCE_PIECE
 	uint8_t t_;
 	while (1) {
-		t_ = fgetc(rng);
+		t_ = rand();
 		if (t_ == EOF) {
-			end(1);
-			fprintf(stderr, "RNG file has ended\n");
 			exit(2);
 			return 0;
 		}
@@ -363,24 +299,12 @@ void add_score(uint8_t lines_cleared) {
 	else if (lines_cleared == 2) score += 3;
 	else if (lines_cleared == 3) score += 5;
 	else score += 8;
-#ifdef BELL
-	if (fork() == 0) {
-		for (uint8_t i = 0; i < lines_cleared; ++i) {
-			sleep_(150); // do beep pattern
-			BELL;
-		}
-		exit(0);
-	}
-#endif
 }
 
 uint8_t move_timer = 0;
 uint8_t move_down() { // move place down
 	if (!move(1, 0)) { // if it hits something
 		move_timer = 0;
-#ifdef BELL
-		BELL;
-#endif
 		place_to_board();
 		add_score(check_full_lines());
 		add_next_piece();
@@ -399,91 +323,74 @@ void drop() { // move_down until it hits something
 	} while (res);
 }
 
-unsigned char poll_() { // check if there is something buffered in stdin
-	struct pollfd fds;
-	unsigned char ret;
-	fds.fd = fileno(stdin);
-	fds.events = POLLIN;
-	ret = poll(&fds, 1, 0);
-	return ret;
-}
-
-int main() {
-	if (!isatty(fileno(stdout))) { fprintf(stderr, "stdout is not a tty\n"); return 9; }
-	if (!isatty(fileno(stderr))) { fprintf(stderr, "stderr is not a tty\n"); return 9; }
-	if (!isatty(fileno(stdin ))) { fprintf(stderr, "stdin is not a tty\n");  return 9; }
-#ifndef FORCE_PIECE
-	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
-	if (!rng) {
-		fprintf(stderr, "%s: %s", RANDOM_FILE, strerror(errno)); // error if can't open RANDOM_FILE
-		return 1;
-	}
-#endif
-	create_pieces();
-	begin();
-	signal(SIGINT,  end_and_exit);
-	signal(SIGHUP,  end_and_exit);
-	signal(SIGQUIT, end_and_exit);
-	signal(SIGKILL, end_and_exit); // cannot be caught but do it anyways
-	signal(SIGTERM, end_and_exit);
-	signal(SIGSEGV, end_and_exit);
-	signal(SIGILL,  end_and_exit);
-	signal(SIGTSTP, tstp); // suspend
-	signal(SIGCONT, cont); // continue
+void reset_game() {
+	game_over = 0;
+	score = 0;
+	memset(board, 0, sizeof(board));
+	memset(place, 0, sizeof(place));
 	random_next_piece();
 	add_next_piece();
 	random_next_piece();
 	move_indicator();
-#ifdef BELL
-	BELL;
-#endif
+}
+
+
+int main() {
+	gfxInitDefault();
+	consoleInit(GFX_TOP, NULL);
+	create_pieces();
+	reset_game();
 	score_string = malloc(24);
-	uint8_t ignore;
-	while (1) {
-		if (++move_timer >= MOVE_EVERY) {
-			move_timer = 0;
-			move_down();
+	while (aptMainLoop()) {
+		gspWaitForVBlank();
+		gfxSwapBuffers();
+		hidScanInput();
+		u32 kDown = hidKeysDown();
+		u32 kHeld = hidKeysHeld();
+		u32 kUp   = hidKeysUp();
+		if (kDown & KEY_START) {
+			consoleClear();
+			break;
 		}
-		ignore = 0;
-		while (poll_()) {
-			int c_ = fgetc(stdin);
-			if (c_ == EOF) { // exit if EOF, otherwise poll_ will return true and will hang
-				end(1);
-				fprintf(stderr, "EOF\n");
-				return 2;
+		if (kDown & KEY_SELECT) {
+			consoleClear();
+			printf("%s", "\
+\x1b[7mLeft\x1b[27m    to move left\n\
+\x1b[7mRight\x1b[27m   to move right\n\
+\x1b[7mDown\x1b[27m    to move down quicker\n\
+\x1b[7mL\x1b[27m       to rotate -90\n\
+\x1b[7mZL\x1b[27m \x1b[7mZR\x1b[27m   to rotate 180\n\
+\x1b[7mR\x1b[27m       to rotate 90\n\
+\x1b[7mX\x1b[27m       to drop instantly\n\
+\x1b[7mStart\x1b[27m   to quit\n\
+");
+		} else if (kUp & KEY_SELECT) {
+			consoleClear();
+		} else if (!(kHeld & KEY_SELECT)) {
+			if (++move_timer >= MOVE_EVERY) {
+				move_timer = 0;
+				move_down();
 			}
-			char c = c_;
-			if (c == '\x1a') { raise(SIGTSTP); } // ctrl+Z
-			else if (c == '\x03' || c == '\x04') { end(1); return 0; } // ctrl+C ctrl+D
-			else if (ignore);
-			else if (c == '\x1b') ignore = 1; // ignore if escape code because ^[[A and ^[[D can be caught by WASD, too lazy to read the whole escape code for arrow keys
-			else if (c == ' ') drop();
-			else if (c == 'a' || c == 'A') { move(0, -1); move_indicator(); }
-			else if (c == 'd' || c == 'D') { move(0,  1); move_indicator(); }
-			else if (c == 's' || c == 'S') { move_down(); } // no need to move_indicator here
-			else if (c == 'q' || c == 'Q') { rotate(-1); move_indicator(); }
-			else if (c == 'w' || c == 'W') { rotate( 2); move_indicator(); }
-			else if (c == 'e' || c == 'E') { rotate( 1); move_indicator(); }
-			else ignore = 1;
-		}
-		render(0);
-		if (game_over) {
-			end(1);
-			printf("Game Over!\n");
-#ifdef BELL
-			if (fork() == 0) {
-				for (uint8_t i = 0; i < 4; ++i) {
-					if (i > 0) sleep_(150); // do beep pattern
-					BELL;
-				}
-				return 0;
+			if (kDown & KEY_X)                        { drop(); }
+			if (kDown & KEY_LEFT)                     { move(0, -1); move_indicator(); }
+			if (kDown & KEY_RIGHT)                    { move(0,  1); move_indicator(); }
+			if (kDown & KEY_DOWN)                     { move_down(); } // no need to move_indicator here
+			if (kDown & KEY_L)                        { rotate(-1); move_indicator(); }
+			if ((kDown & KEY_ZL) || (kDown & KEY_ZR)) { rotate( 2); move_indicator(); }
+			if (kDown & KEY_R)                        { rotate( 1); move_indicator(); }
+			render();
+			if (game_over) {
+				printf("Game Over!        \n");
+				sleep_(GAME_OVER_DELAY);
+				reset_game();
+			} else {
+				printf("%s", "\
+\x1b[7mSelect\x1b[27m  for help\n\
+");
 			}
-#endif
-			return 0;
 		}
 		sleep_(DELAY);
 	}
-	// this shouldn't happen
-	end(1);
+	gfxExit();
 	return 0;
 }

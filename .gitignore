@@ -1,3 +1,6 @@
-tetris
-*.o
+build/
+*.3dsx
+*.elf
+*.smdh
 *.swp
+*.cia
