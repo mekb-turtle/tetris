@@ -275,6 +275,9 @@ uint8_t rotate(int8_t a) {
 	uint8_t sj1 = UINT8_MAX;
 	uint8_t si2 = UINT8_MAX;
 	uint8_t sj2 = UINT8_MAX;
+	uint16_t zi = 0;
+	uint16_t zj = 0;
+	uint8_t zz = 0;
 	for (uint8_t i = 0; i < GAME_I; ++i)
 		for (uint8_t j = 0; j < GAME_J; ++j)
 			if (place[i][j]) {
@@ -282,13 +285,46 @@ uint8_t rotate(int8_t a) {
 				if (sj1 == UINT8_MAX || j < sj1) sj1 = j; // find lowest j
 				if (si2 == UINT8_MAX || i > si2) si2 = i; // find highest i
 				if (sj2 == UINT8_MAX || j > sj2) sj2 = j; // find highest j
+				// find the middle piece
+				zi += i;
+				zj += j;
+				++zz;
 			}
 	if (si1 == UINT8_MAX || sj1 == UINT8_MAX || si2 == UINT8_MAX || sj2 == UINT8_MAX) return 1;
+	// make sure it rotates around the center instead of top left
+	zi /= zz; zj /= zz;
+	int8_t di = zi-si1;
+	int8_t dj = zj-sj1;
+	int8_t di2 = di;
+	int8_t dj2 = dj;
+	si1 += di; sj1 += dj; si2 += di; sj2 += dj;
+	memcpy(place_indicator, place, sizeof(place));
+	// this is so fucking hacky, i'm so sorry
+	while (di != 0 && dj != 0) {
+		int8_t move_i = di > 0 ? 1 : di < 0 ? -1 : 0;
+		int8_t move_j = dj > 0 ? 1 : dj < 0 ? -1 : 0;
+		for (uint8_t i = 0; i < GAME_I; ++i)
+			for (uint8_t j = 0; j < GAME_J; ++j)
+				if (place_indicator[i][j]) {
+					if (move_i < 0 && i == 0) return 0;
+					if (move_i > 0 && i >= GAME_I-1) return 0;
+					if (move_j < 0 && j == 0) return 0;
+					if (move_j > 0 && j >= GAME_J-1) return 0;
+					if (board[i+move_i][j+move_j]) return 0; // check there aren't tiles there on the board already
+				}
+		di -= move_i;
+		dj -= move_j;
+	}
 	if (a < 2) {
 		if (si1 + (sj2 - sj1) >= GAME_I) return 0; // check if in bounds
 		if (sj1 + (si2 - si1) >= GAME_J) return 0;
 	}
-	memcpy(place_indicator, place, sizeof(place));
+	for (uint8_t i = di2 >= 0 ? GAME_I - 1 : 0; di2 >= 0 ? (i >= 0 && i != UINT8_MAX) : i < GAME_I; i += di2 >= 0 ? -1 : 1)
+		for (uint8_t j = dj2 >= 0 ? GAME_J - 1 : 0; dj2 >= 0 ? (j >= 0 && j != UINT8_MAX) : j < GAME_J; j += dj2 >= 0 ? -1 : 1)
+			if (place_indicator[i][j]) {
+				place_indicator[i+di2][j+dj2] = place_indicator[i][j];
+				place_indicator[i][j] = 0;
+			}
 	for (uint8_t r = 0; r < (a == 2 ? 2 : 1); ++r) {
 		if (a > 0) rotate_reverse(si1, sj1, si2, sj2);
 		rotate_flip_ij(si1, sj1, si2, sj2);
