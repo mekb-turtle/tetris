@@ -10,15 +10,19 @@
 #include <unistd.h>
 #include <GL/glut.h>
 #include <math.h>
+void glutStrokeString(void* a, char* b); // it exists, this is here to stop implicit declaration warning and I can't find the header for it lol
 
 // 3d constants
 #define ROTATE_X_DEG 15
 #define ROTATE_Y_DEG 15
-#define ZOOM_MAX_DEG 5.0f
-#define ZOOM_MIN_DEG 0.005f
+#define ZOOM_MAX_DEG 0.084f
+#define ZOOM_MIN_DEG 0.01f
 #define ZOOM_DEG 1.2f
 #define MOVE 0.1f
 #define MOVE_MAX 1.0f
+#define FONT GLUT_STROKE_ROMAN
+#define TEXT_SCALE 0.0075f
+#define COLOR_BORDER 0.5f, 0.5f, 0.5f
 
 // game constants
 #define MOVE_EVERY 300 // how many ms to move down by one
@@ -48,8 +52,6 @@ uint8_t lighting = 0;
 float zoom;
 float rotateX;
 float rotateY;
-float moveX;
-float moveY;
 int w, h, s, ow, oh;
 
 void sleep_(unsigned long ms) {
@@ -58,9 +60,23 @@ void sleep_(unsigned long ms) {
 }
 
 char* score_string;
-size_t score_len;
+
+float lerp(float a, float b, float t) {
+	return (b-a)*t+a;
+}
+float l1(float a) { return lerp(a, 1.0f, 0.25f); }
+float d1(float a) { return lerp(a, 0.0f, 0.25f); }
+float d2(float a) { return lerp(a, 0.0f, 0.50f); }
+float d3(float a) { return lerp(a, 0.0f, 0.75f); }
 
 void cube(float r, float g, float b, float a, float x, float y, float z) {
+	if (a < 1.0f) {
+		// temp fix because semi-transparency doesn't work
+		r *= 1.0f - a;
+		g *= 1.0f - a;
+		b *= 1.0f - a;
+	}
+	a = 1.0f;
 	glColor4f(r, g, b, a);
 	glBegin(GL_POLYGON);
 	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
@@ -68,24 +84,28 @@ void cube(float r, float g, float b, float a, float x, float y, float z) {
 	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
 	glVertex3f(x+1.0f, y+0.0f, z+0.0f);
 	glEnd();
+	glColor4f(d2(r), d2(g), d2(b), a);
 	glBegin(GL_POLYGON);
 	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
 	glVertex3f(x+0.0f, y+1.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+0.0f, z+1.0f);
 	glEnd();
+	glColor4f(d3(r), d3(g), d3(b), a);
 	glBegin(GL_POLYGON);
 	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
 	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+0.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+0.0f, z+0.0f);
 	glEnd();
+	glColor4f(l1(r), l1(g), l1(b), a);
 	glBegin(GL_POLYGON);
 	glVertex3f(x+0.0f, y+1.0f, z+0.0f);
 	glVertex3f(x+0.0f, y+1.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
 	glEnd();
+	glColor4f(d1(r), d1(g), d1(b), a);
 	glBegin(GL_POLYGON);
 	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
 	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
@@ -98,6 +118,12 @@ void cube(float r, float g, float b, float a, float x, float y, float z) {
 	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
 	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
 	glEnd();
+}
+
+void drawText(char* str) {
+	glPushMatrix();
+	glutStrokeString(FONT, str);
+	glPopMatrix();
 }
 
 void render() {
@@ -112,15 +138,18 @@ void render() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 	glPushMatrix();
-	glTranslatef(moveX, moveY, 0);
 	glScalef(zoom, zoom, zoom);
 	glRotatef(rotateY, 1.0f, 0.0f, 0.0f);
 	glRotatef(rotateX, 0.0f, 1.0f, 0.0f);
-	glTranslatef((float)GAME_J/-2.0f, (float)GAME_I/2.0f-1.0f, 0.f);
-	if (score == 0) sprintf(score_string, " 0 %c", '\0');
-	else sprintf(score_string, " %li00 %c", score, '\0');
-	score_len = strlen(score_string);
+	glTranslatef((float)GAME_J/-2.0f, (float)GAME_I/2.0f-1.0f, 0.0f);
+	for (float j = -1; j < GAME_J+1; ++j) {
+		cube(COLOR_BORDER, 1.0f, j, 1.0f, 0.f);
+		for (float k = -1.0f; k <= 1.0f; ++k)
+			cube(COLOR_BORDER, 1.0f, j, -GAME_I, k);
+	}
 	for (uint8_t i = 0; i < GAME_I; ++i) {
+		cube(COLOR_BORDER, 1.0f, -1.0f, -i, 0.f);
+		cube(COLOR_BORDER, 1.0f, GAME_J, -i, 0.f);
 		for (uint8_t j = 0; j < GAME_J; ++j) {
 			float r;
 			float g;
@@ -131,6 +160,31 @@ void render() {
 			else if (get_color(place_indicator[i][j], &r, &g, &b)) a = 0.5f;
 			else continue;
 			cube(r, g, b, a, j, -i, 0);
+		}
+	}
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	glTranslatef((float)GAME_J + 1.5f, 0.0f, 0.0f);
+	glScalef(TEXT_SCALE, TEXT_SCALE, TEXT_SCALE);
+	if (game_over) drawText("Game\nOver!");
+	glTranslatef(0.0f, -2.5f / TEXT_SCALE, 0.0f);
+	drawText("Score:");
+	glTranslatef(0.0f, -1.0f / TEXT_SCALE, 0.0f);
+	sprintf(score_string, "%li%s", score, score == 0 ? "" : "00");
+	drawText(score_string);
+	glTranslatef(0.0f, -1.5f / TEXT_SCALE, 0.0f);
+	drawText("Next:");
+	glTranslatef(0.0f, -1.5f / TEXT_SCALE, 0.0f);
+	float r;
+	float g;
+	float b;
+	if (get_color(next_piece_id, &r, &g, &b)) {
+		glScalef(1.0f / TEXT_SCALE, 1.0f / TEXT_SCALE, 1.0f / TEXT_SCALE);
+		glTranslatef(0.0f, -0.5f, 0.0f);
+		for (uint8_t i = 0; i < next_piece_i; ++i) {
+			for (uint8_t j = 0; j < next_piece_j; ++j) {
+				if (!next_piece[i][j]) continue;
+				cube(r, g, b, 1.0f, j, -i, 0);
+			}
 		}
 	}
 	glPopMatrix();
@@ -355,7 +409,6 @@ void reset() {
 	move_indicator();
 	game_over = 0;
 	score = 0;
-	move_down();
 }
 
 void updateLighting(uint8_t l) {
@@ -378,12 +431,6 @@ void updateRotate() {
 	while (rotateY >= 180) rotateY -= 360;
 	while (rotateY < -180) rotateY += 360;
 }
-void updateMove() {
-	if (moveX > +MOVE_MAX) moveX = +MOVE_MAX;
-	if (moveX < -MOVE_MAX) moveX = -MOVE_MAX;
-	if (moveY > +MOVE_MAX) moveY = +MOVE_MAX;
-	if (moveY < -MOVE_MAX) moveY = -MOVE_MAX;
-}
 void zoomIn() {
 	if (zoom < ZOOM_MAX_DEG) zoom *= ZOOM_DEG;
 }
@@ -391,11 +438,9 @@ void zoomOut() {
 	if (zoom > ZOOM_MIN_DEG) zoom /= ZOOM_DEG;
 }
 void resetView() {
-	zoom = 0.1f;
-	rotateX = 0.0f;
-	rotateY = 0.0f;
-	moveX = 0.0f;
-	moveY = 0.0f;
+	zoom = 0.084f;
+	rotateX = ROTATE_X_DEG * +1.0f;
+	rotateY = ROTATE_Y_DEG * -1.0f;
 }
 void special(int key, int x, int y) {
 	switch (key) {
@@ -420,13 +465,34 @@ void keyboard(unsigned char key, int x, int y) {
 		case 'i': case 'I': zoomIn();  break;
 		case 'o': case 'O': zoomOut(); break;
 		case 'm': case 'M': exit(0); return;
-		case 'n': case 'N': reset(); break;
+		case 'n': case 'N': reset(); move_down(); break;
 		case 'r': case 'R': break;
 		case 't': case 'T': resetView(); break;
 		case 'l': case 'L': updateLighting(lighting = !lighting); break;
+		case 'h': case 'H':
+			printf("%s", "\n\
+Controls:\n\
+ A to move left\n\
+ D to move right\n\
+ S to move down quicker\n\
+ Q to rotate -90°\n\
+ W to rotate 180°\n\
+ E to rotate 90°\n\
+ N to reset game\n\
+ M to quit\n\n\
+Camera Controls:\n\
+ Space to drop down instantly\n\
+ Arrow keys or drag left click to rotate\n\
+ I,O or scroll wheel to zoom in/out\n\
+ T to reset view\n\n\
+Render Controls:\n\
+ R to re-render\n\
+ L to toggle lighting\n\
+ H to show this help text in console\n\
+\n");
+			break;
 		default: return;
 	}
-	updateMove();
 	glutPostRedisplay();
 }
 int ix, iy;
@@ -445,12 +511,7 @@ void mouse(int button, int up, int x, int y) {
 void motion(int x, int y) {
 	int dx = x-ix,
 	    dy = y-iy;
-	if (down2) {
-		moveX += ((float)dx)/s;
-		moveY -= ((float)dy)/s;
-		updateMove();
-		glutPostRedisplay();
-	} else if (down0) {
+	if (down0) {
 		rotateX -= ((float)dx)/s*180;
 		rotateY -= ((float)dy)/s*180;
 		updateRotate();
@@ -460,30 +521,12 @@ void motion(int x, int y) {
 }
 void timer(int bla) {
 	move_down();
+	glutPostRedisplay();
+	glutTimerFunc(MOVE_EVERY, timer, 0);
 }
 
 int main(int argc, char* argv[]) {
-	if (argc > 1) {
-		printf("\
-Usage: %s\n\n\
-Controls:\n\
- Arrow keys or drag left click to rotate\n\
- A to move left\n\
- D to move right\n\
- S to move down quicker\n\
- Q to rotate -90°\n\
- W to rotate 180°\n\
- E to rotate 90°\n\
- Space to drop down instantly\n\
- I,O or scroll wheel to zoom in/out\n\
- M to quit\n\
- N to reset game\n\
- R to re-render\n\
- T to reset view\n\
- L to toggle lighting\n\
-", argv[0]);
-		return 2;
-	}
+	printf("H to show help text\n");
 #ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
@@ -493,18 +536,18 @@ Controls:\n\
 #endif
 	create_pieces();
 	score_string = malloc(24);
-	reset();
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
 	glutCreateWindow("Tetris");
 	updateLighting(lighting);
+	reset();
 	resetView();
 	glutDisplayFunc(render);
 	glutSpecialFunc(special);
 	glutKeyboardFunc(keyboard);
-	glutTimerFunc(MOVE_EVERY, timer, 0);
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
+	timer(0);
 	glutMainLoop();
 	return 0;
 }
