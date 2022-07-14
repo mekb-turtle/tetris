@@ -8,10 +8,20 @@
 #include <signal.h>
 #include <termios.h>
 #include <unistd.h>
+#include <GL/glut.h>
+#include <math.h>
+
+// 3d constants
+#define ROTATE_X_DEG 15
+#define ROTATE_Y_DEG 15
+#define ZOOM_MAX_DEG 5.0f
+#define ZOOM_MIN_DEG 0.005f
+#define ZOOM_DEG 1.2f
+#define MOVE 0.1f
+#define MOVE_MAX 1.0f
 
 // game constants
-#define DELAY 5 // how many ms every tick is
-#define MOVE_EVERY 60 // how many delays to move down by one
+#define MOVE_EVERY 300 // how many ms to move down by one
 #define GAME_I 20 // board height
 #define GAME_J 10 // board width
 
@@ -19,22 +29,6 @@
 #include "./tetrominos.h"
 #define RANDOM_FILE "/dev/urandom" // file to read random bytes from for rng
 //#define FORCE_PIECE ID_I // uncomment and set to ID_<piece> to force a piece to spawn instead of reading from RANDOM_FILE
-
-// rendering
-//#define BELL fprintf(stderr, "\a") // uncomment if you want a bell for most actions
-#define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
-#define CLEAR_BORDER    7 // needs to be at least the maximum j of all tetrominos
-#define COLOR_BORDER    "\x1b[38;5;8m" // the color sequence of the border
-#define RESET           "\x1b[0m" // reset sequence
-#define BOARD_CHAR      "██"
-#define PLACE_CHAR      "██"
-#define NEXT_CHAR       "██"
-#define INDICATOR_CHAR  "▒▒"
-#define BORDER_CHAR     "▒▒"
-#define BORDER_CHAR_ONE "▒"
-#define EMPTY_CHAR      "  "
-#define BORDER RESET COLOR_BORDER BORDER_CHAR
-#define BORDER_ONE RESET COLOR_BORDER BORDER_CHAR_ONE
 
 // game variables
 long score = 0;
@@ -49,6 +43,15 @@ uint8_t next_piece_i; // height of next piece to be placed
 uint8_t next_piece_j; // width of next piece to be placed
 FILE* rng;
 
+// 3d variables
+uint8_t lighting = 0;
+float zoom;
+float rotateX;
+float rotateY;
+float moveX;
+float moveY;
+int w, h, s, ow, oh;
+
 void sleep_(unsigned long ms) {
 	struct timespec r = { ms/1e3, (ms%1000)*1e6 }; // 1 millisecond = 1e6 nanoseonds
 	nanosleep(&r, NULL);
@@ -57,119 +60,81 @@ void sleep_(unsigned long ms) {
 char* score_string;
 size_t score_len;
 
-void render(uint8_t end) {
-	if (!end) printf("\x1b[H"); // goto 0,0
-	for (uint8_t j = 0; j < GAME_J+3+next_piece_j;       ++j) printf(BORDER);
-	printf("%s", RESET);
-	for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf(EMPTY_CHAR);
-	printf("\r\n");
+void cube(float r, float g, float b, float a, float x, float y, float z) {
+	glColor4f(r, g, b, a);
+	glBegin(GL_POLYGON);
+	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
+	glVertex3f(x+0.0f, y+1.0f, z+0.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
+	glVertex3f(x+1.0f, y+0.0f, z+0.0f);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
+	glVertex3f(x+0.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+0.0f, z+1.0f);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
+	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+0.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+0.0f, z+0.0f);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glVertex3f(x+0.0f, y+1.0f, z+0.0f);
+	glVertex3f(x+0.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glVertex3f(x+0.0f, y+0.0f, z+0.0f);
+	glVertex3f(x+0.0f, y+0.0f, z+1.0f);
+	glVertex3f(x+0.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+0.0f, y+1.0f, z+0.0f);
+	glEnd();
+	glBegin(GL_POLYGON);
+	glVertex3f(x+1.0f, y+0.0f, z+0.0f);
+	glVertex3f(x+1.0f, y+0.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+1.0f);
+	glVertex3f(x+1.0f, y+1.0f, z+0.0f);
+	glEnd();
+}
+
+void render() {
+	w  = glutGet(GLUT_WINDOW_WIDTH);
+	h  = glutGet(GLUT_WINDOW_HEIGHT);
+	s  = w > h ? h : w;
+	ow = w > h ? (w - s) / 2 : 0;
+	oh = w < h ? (h - s) / 2 : 0;
+	glViewport(ow, oh, s, s);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glPointSize(1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glPushMatrix();
+	glTranslatef(moveX, moveY, 0);
+	glScalef(zoom, zoom, zoom);
+	glRotatef(rotateY, 1.0f, 0.0f, 0.0f);
+	glRotatef(rotateX, 0.0f, 1.0f, 0.0f);
+	glTranslatef((float)GAME_J/-2.0f, (float)GAME_I/2.0f-1.0f, 0.f);
 	if (score == 0) sprintf(score_string, " 0 %c", '\0');
 	else sprintf(score_string, " %li00 %c", score, '\0');
 	score_len = strlen(score_string);
 	for (uint8_t i = 0; i < GAME_I; ++i) {
-		printf("%s", BORDER RESET);
 		for (uint8_t j = 0; j < GAME_J; ++j) {
-			char* col = NULL;
-			printf("%s", RESET);
-			if        (col = get_color(board[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, BOARD_CHAR);
-			} else if (col = get_color(place[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, PLACE_CHAR);
-			} else if (col = get_color(place_indicator[i][j])) {
-				printf("\x1b[38;5;%sm%s", col, INDICATOR_CHAR);
-			} else {
-				printf("%s", EMPTY_CHAR);
-			}
+			float r;
+			float g;
+			float b;
+			float a = 1.0f;
+			if      (get_color(board          [i][j], &r, &g, &b));
+			else if (get_color(place          [i][j], &r, &g, &b));
+			else if (get_color(place_indicator[i][j], &r, &g, &b)) a = 0.5f;
+			else continue;
+			cube(r, g, b, a, j, -i, 0);
 		}
-		printf("%s", BORDER);
-		if (i == GAME_I - 1) {
-			printf("%s%s%s", RESET, score_string, BORDER); // print score
-		} else if (i == GAME_I - 2) {
-			printf("%s", BORDER);
-			for (uint8_t j = 0; j < score_len; ++j)
-				printf("%s", BORDER_ONE);
-		} else if (i == next_piece_i) {
-			for (uint8_t j = 0; j < next_piece_j+1; ++j) printf("%s", BORDER);
-			printf("%s", RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf("%s", EMPTY_CHAR);
-		} else if (i > next_piece_i) {
-			printf("%s", RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER;                ++j) printf("%s", EMPTY_CHAR);
-		} else {
-			printf("%s", RESET);
-			printf("\x1b[38;5;%sm", get_color(next_piece_id));
-			for (uint8_t j = 0; j < next_piece_j; ++j) {
-				printf("%s", next_piece[i][j] ? NEXT_CHAR : EMPTY_CHAR); // print the tile
-			}
-			printf("%s", BORDER RESET);
-			for (uint8_t j = 0; j < CLEAR_BORDER-next_piece_j-1; ++j) printf("%s", EMPTY_CHAR);
-		}
-		printf("\r\n");
 	}
-	for (uint8_t j = 0; j < GAME_J+3; ++j) printf("%s", BORDER);
-	for (uint8_t j = 0; j < score_len; ++j) printf("%s", BORDER_ONE);
-	printf("%s\r\n", RESET);
-	if (!end) {
-		printf("%s", "\r\n\
-\x1b[7mA\x1b[27m to move left\r\n\
-\x1b[7mD\x1b[27m to move right\r\n\
-\x1b[7mS\x1b[27m to move down quicker\r\n\
-\x1b[7mQ\x1b[27m to rotate -90°\r\n\
-\x1b[7mW\x1b[27m to rotate 180°\r\n\
-\x1b[7mE\x1b[27m to rotate 90°\r\n\
-\x1b[7mSpace\x1b[27m to drop instantly\r\n\
-");
-	}
-}
-
-uint8_t began = 0;
-void clear() {
-	printf("\x1b[H\x1b[J\x1b[2J\x1b[0m"); // clear sequence
-}
-void flush_all() {
-	fflush(stdin); fflush(stdout); fflush(stderr);
-}
-void begin() {
-	if (began) return;
-	began = 1;
-	system("stty raw"); // set to raw mode
-	printf("\x1b[s\x1b[?47h\x1b[?25l"); // save the screen and cursor location
-	clear();
-    struct termios term;
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag &= ~(LFLAGS); // remove the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-}
-void end(uint8_t do_render) {
-	if (!began) return;
-	began = 0;
-    struct termios term;
-	clear();
-	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
-	if (do_render) render(1);
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag |= LFLAGS; // add the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
-	flush_all();
-	system("stty sane"); // set to normal mode
-}
-void end_and_exit() {
-	end(1);
-	exit(0);
-}
-void tstp() {
-#ifdef BELL
-	BELL;
-#endif
-	end(0);
-	raise(SIGSTOP); // raise SIGSTOP which cannot be caught and actually does the suspend
-}
-void cont() {
-#ifdef BELL
-	BELL;
-#endif
-	begin();
+	glPopMatrix();
+	glFlush();
 }
 
 uint8_t is_placing() { // returns 1 if there are tiles in place
@@ -209,7 +174,6 @@ uint8_t random_next_piece() {
 	while (1) {
 		t_ = fgetc(rng);
 		if (t_ == EOF) {
-			end(1);
 			fprintf(stderr, "RNG file has ended\n");
 			exit(2);
 			return 0;
@@ -363,24 +327,11 @@ void add_score(uint8_t lines_cleared) {
 	else if (lines_cleared == 2) score += 3;
 	else if (lines_cleared == 3) score += 5;
 	else score += 8;
-#ifdef BELL
-	if (fork() == 0) {
-		for (uint8_t i = 0; i < lines_cleared; ++i) {
-			sleep_(150); // do beep pattern
-			BELL;
-		}
-		exit(0);
-	}
-#endif
 }
-
 uint8_t move_timer = 0;
 uint8_t move_down() { // move place down
 	if (!move(1, 0)) { // if it hits something
 		move_timer = 0;
-#ifdef BELL
-		BELL;
-#endif
 		place_to_board();
 		add_score(check_full_lines());
 		add_next_piece();
@@ -393,25 +344,146 @@ uint8_t move_down() { // move place down
 	return 1;
 }
 void drop() { // move_down until it hits something
-	uint8_t res;
-	do {
-		res = move_down();
-	} while (res);
+	while (move_down());
+}
+void reset() {
+	random_next_piece();
+	add_next_piece();
+	random_next_piece();
+	memset(board, 0, sizeof(place));
+	memset(place, 0, sizeof(place));
+	move_indicator();
+	game_over = 0;
+	score = 0;
+	move_down();
 }
 
-unsigned char poll_() { // check if there is something buffered in stdin
-	struct pollfd fds;
-	unsigned char ret;
-	fds.fd = fileno(stdin);
-	fds.events = POLLIN;
-	ret = poll(&fds, 1, 0);
-	return ret;
+void updateLighting(uint8_t l) {
+	glEnable(GL_COLOR_MATERIAL);
+	glEnable(GL_LIGHT0);
+	glLightfv(GL_LIGHT0, GL_AMBIENT,  (float[]){0.0f,0.0f,0.0f,1.0f});
+	glLightfv(GL_LIGHT0, GL_DIFFUSE,  (float[]){1.0f,1.0f,1.0f,1.0f});
+	glLightfv(GL_LIGHT0, GL_SPECULAR, (float[]){1.0f,1.0f,1.0f,1.0f});
+	glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+	if (l) {
+		glEnable (GL_LIGHTING);
+	} else {
+		glDisable(GL_LIGHTING);
+	}
+	glLightfv(GL_LIGHT0, GL_POSITION, (float[]){0.0f,0.0f,0.0f,1.0f});
+}
+void updateRotate() {
+	while (rotateX >= 360) rotateX -= 360;
+	while (rotateX <  0)   rotateX += 360;
+	while (rotateY >= 180) rotateY -= 360;
+	while (rotateY < -180) rotateY += 360;
+}
+void updateMove() {
+	if (moveX > +MOVE_MAX) moveX = +MOVE_MAX;
+	if (moveX < -MOVE_MAX) moveX = -MOVE_MAX;
+	if (moveY > +MOVE_MAX) moveY = +MOVE_MAX;
+	if (moveY < -MOVE_MAX) moveY = -MOVE_MAX;
+}
+void zoomIn() {
+	if (zoom < ZOOM_MAX_DEG) zoom *= ZOOM_DEG;
+}
+void zoomOut() {
+	if (zoom > ZOOM_MIN_DEG) zoom /= ZOOM_DEG;
+}
+void resetView() {
+	zoom = 0.1f;
+	rotateX = 0.0f;
+	rotateY = 0.0f;
+	moveX = 0.0f;
+	moveY = 0.0f;
+}
+void special(int key, int x, int y) {
+	switch (key) {
+		case GLUT_KEY_LEFT:  rotateX += ROTATE_X_DEG; break;
+		case GLUT_KEY_RIGHT: rotateX -= ROTATE_X_DEG; break;
+		case GLUT_KEY_UP:    rotateY += ROTATE_Y_DEG; break;
+		case GLUT_KEY_DOWN:  rotateY -= ROTATE_Y_DEG; break;
+		default: return;
+	}
+	updateRotate();
+	glutPostRedisplay();
+}
+void keyboard(unsigned char key, int x, int y) {
+	switch (key) {
+		case ' ': drop(); break;
+		case 'a': case 'A': if (game_over) break; move(0, -1); move_indicator(); break;
+		case 'd': case 'D': if (game_over) break; move(0,  1); move_indicator(); break;
+		case 's': case 'S': if (game_over) break; move_down(); break;
+		case 'q': case 'Q': if (game_over) break; rotate(-1);  move_indicator();break;
+		case 'w': case 'W': if (game_over) break; rotate( 2);  move_indicator(); break;
+		case 'e': case 'E': if (game_over) break; rotate( 1);  move_indicator(); break;
+		case 'i': case 'I': zoomIn();  break;
+		case 'o': case 'O': zoomOut(); break;
+		case 'm': case 'M': exit(0); return;
+		case 'n': case 'N': reset(); break;
+		case 'r': case 'R': break;
+		case 't': case 'T': resetView(); break;
+		case 'l': case 'L': updateLighting(lighting = !lighting); break;
+		default: return;
+	}
+	updateMove();
+	glutPostRedisplay();
+}
+int ix, iy;
+uint8_t down0;
+uint8_t down1;
+uint8_t down2;
+void mouse(int button, int up, int x, int y) {
+	ix = x; iy = y;
+	down0 = down1 = down2 = 0;
+	if (button == 0) down0 = !up;
+	if (button == 1) down1 = !up;
+	if (button == 2) down2 = !up;
+	if (button == 3) { zoomIn();  glutPostRedisplay(); }
+	if (button == 4) { zoomOut(); glutPostRedisplay(); }
+}
+void motion(int x, int y) {
+	int dx = x-ix,
+	    dy = y-iy;
+	if (down2) {
+		moveX += ((float)dx)/s;
+		moveY -= ((float)dy)/s;
+		updateMove();
+		glutPostRedisplay();
+	} else if (down0) {
+		rotateX -= ((float)dx)/s*180;
+		rotateY -= ((float)dy)/s*180;
+		updateRotate();
+		glutPostRedisplay();
+	}
+	ix = x; iy = y;
+}
+void timer(int bla) {
+	move_down();
 }
 
-int main() {
-	if (!isatty(fileno(stdout))) { fprintf(stderr, "stdout is not a tty\n"); return 9; }
-	if (!isatty(fileno(stderr))) { fprintf(stderr, "stderr is not a tty\n"); return 9; }
-	if (!isatty(fileno(stdin ))) { fprintf(stderr, "stdin is not a tty\n");  return 9; }
+int main(int argc, char* argv[]) {
+	if (argc > 1) {
+		printf("\
+Usage: %s\n\n\
+Controls:\n\
+ Arrow keys or drag left click to rotate\n\
+ A to move left\n\
+ D to move right\n\
+ S to move down quicker\n\
+ Q to rotate -90°\n\
+ W to rotate 180°\n\
+ E to rotate 90°\n\
+ Space to drop down instantly\n\
+ I,O or scroll wheel to zoom in/out\n\
+ M to quit\n\
+ N to reset game\n\
+ R to re-render\n\
+ T to reset view\n\
+ L to toggle lighting\n\
+", argv[0]);
+		return 2;
+	}
 #ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
@@ -420,70 +492,19 @@ int main() {
 	}
 #endif
 	create_pieces();
-	begin();
-	signal(SIGINT,  end_and_exit);
-	signal(SIGHUP,  end_and_exit);
-	signal(SIGQUIT, end_and_exit);
-	signal(SIGKILL, end_and_exit); // cannot be caught but do it anyways
-	signal(SIGTERM, end_and_exit);
-	signal(SIGSEGV, end_and_exit);
-	signal(SIGILL,  end_and_exit);
-	signal(SIGTSTP, tstp); // suspend
-	signal(SIGCONT, cont); // continue
-	random_next_piece();
-	add_next_piece();
-	random_next_piece();
-	move_indicator();
-#ifdef BELL
-	BELL;
-#endif
 	score_string = malloc(24);
-	uint8_t ignore;
-	while (1) {
-		if (++move_timer >= MOVE_EVERY) {
-			move_timer = 0;
-			move_down();
-		}
-		ignore = 0;
-		while (poll_()) {
-			int c_ = fgetc(stdin);
-			if (c_ == EOF) { // exit if EOF, otherwise poll_ will return true and will hang
-				end(1);
-				fprintf(stderr, "EOF\n");
-				return 2;
-			}
-			char c = c_;
-			if (c == '\x1a') { raise(SIGTSTP); } // ctrl+Z
-			else if (c == '\x03' || c == '\x04') { end(1); return 0; } // ctrl+C ctrl+D
-			else if (ignore);
-			else if (c == '\x1b') ignore = 1; // ignore if escape code because ^[[A and ^[[D can be caught by WASD, too lazy to read the whole escape code for arrow keys
-			else if (c == ' ') drop();
-			else if (c == 'a' || c == 'A') { move(0, -1); move_indicator(); }
-			else if (c == 'd' || c == 'D') { move(0,  1); move_indicator(); }
-			else if (c == 's' || c == 'S') { move_down(); } // no need to move_indicator here
-			else if (c == 'q' || c == 'Q') { rotate(-1); move_indicator(); }
-			else if (c == 'w' || c == 'W') { rotate( 2); move_indicator(); }
-			else if (c == 'e' || c == 'E') { rotate( 1); move_indicator(); }
-			else ignore = 1;
-		}
-		render(0);
-		if (game_over) {
-			end(1);
-			printf("Game Over!\n");
-#ifdef BELL
-			if (fork() == 0) {
-				for (uint8_t i = 0; i < 4; ++i) {
-					if (i > 0) sleep_(150); // do beep pattern
-					BELL;
-				}
-				return 0;
-			}
-#endif
-			return 0;
-		}
-		sleep_(DELAY);
-	}
-	// this shouldn't happen
-	end(1);
+	reset();
+	glutInit(&argc, argv);
+	glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB | GLUT_DEPTH);
+	glutCreateWindow("Tetris");
+	updateLighting(lighting);
+	resetView();
+	glutDisplayFunc(render);
+	glutSpecialFunc(special);
+	glutKeyboardFunc(keyboard);
+	glutTimerFunc(MOVE_EVERY, timer, 0);
+	glutMouseFunc(mouse);
+	glutMotionFunc(motion);
+	glutMainLoop();
 	return 0;
 }

@@ -58,13 +58,13 @@ void create_pieces() { // i tried using arrays but they don't work with some oth
 	piece_z[0][1] = piece_z[1][0] = piece_z[1][1] = piece_z[2][0] = 1;
 }
 
-#define COLOR_I "14"
-#define COLOR_J "12"
-#define COLOR_L "3"
-#define COLOR_O "11"
-#define COLOR_S "10"
-#define COLOR_T "13"
-#define COLOR_Z "9"
+#define COLOR_I *r=0.0f; *g=1.0f; *b=1.0f;
+#define COLOR_J *r=0.0f; *g=0.0f; *b=1.0f;
+#define COLOR_L *r=1.0f; *g=0.6f; *b=0.0f;
+#define COLOR_O *r=1.0f; *g=1.0f; *b=0.0f;
+#define COLOR_S *r=0.0f; *g=1.0f; *b=0.0f;
+#define COLOR_T *r=1.0f; *g=0.0f; *b=1.0f;
+#define COLOR_Z *r=1.0f; *g=0.0f; *b=0.0f;
 
 // do not put 0, it is treated as no block
 #define ID_I 1
@@ -78,13 +78,14 @@ void create_pieces() { // i tried using arrays but they don't work with some oth
 // above IDs must range from 1 to NUM_PIECES, NUM_PIECES cannot be above UINT8_MAX or above, nor below 1
 #define NUM_PIECES 7
 
-char* get_color(uint8_t col) {
-	if      (col == ID_I) return COLOR_I;
-	else if (col == ID_J) return COLOR_J;
-	else if (col == ID_L) return COLOR_L;
-	else if (col == ID_O) return COLOR_O;
-	else if (col == ID_S) return COLOR_S;
-	else if (col == ID_T) return COLOR_T;
-	else if (col == ID_Z) return COLOR_Z;
-	return NULL;
+uint8_t get_color(uint8_t col, float *r, float *g, float *b) {
+	if      (col == ID_I) { COLOR_I }
+	else if (col == ID_J) { COLOR_J }
+	else if (col == ID_L) { COLOR_L }
+	else if (col == ID_O) { COLOR_O }
+	else if (col == ID_S) { COLOR_S }
+	else if (col == ID_T) { COLOR_T }
+	else if (col == ID_Z) { COLOR_Z }
+	else return 0;
+	return 1;
 }

@@ -1,6 +1,6 @@
 CC=cc
 CFLAGS=-Wall -O2
-LFLAGS=-lm -s
+LFLAGS=-lm -s -lGL -lGLU -lglut
 
 OBJS=tetris.o
 
