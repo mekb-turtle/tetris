@@ -188,7 +188,7 @@ void render() {
 		}
 	}
 	glPopMatrix();
-	glFlush();
+	glutSwapBuffers();
 }
 
 uint8_t is_placing() { // returns 1 if there are tiles in place
