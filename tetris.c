@@ -8,6 +8,8 @@
 #include <signal.h>
 #include <termios.h>
 #include <unistd.h>
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#define strerr strerror(errno)
 
 // game constants
 #define DELAY 5 // how many ms every tick is
@@ -21,7 +23,7 @@
 //#define FORCE_PIECE ID_I // uncomment and set to ID_<piece> to force a piece to spawn instead of reading from RANDOM_FILE
 
 // rendering
-//#define BELL fprintf(stderr, "\a") // uncomment if you want a bell for most actions
+//#define BELL eprintf("\a") // uncomment if you want a bell for most actions
 #define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
 #define CLEAR_BORDER    7 // needs to be at least the maximum j of all tetrominos
 #define COLOR_BORDER    "\x1b[38;5;8m" // the color sequence of the border
@@ -210,7 +212,7 @@ uint8_t random_next_piece() {
 		t_ = fgetc(rng);
 		if (t_ == EOF) {
 			end(1);
-			fprintf(stderr, "RNG file has ended\n");
+			eprintf("RNG file has ended\n");
 			exit(2);
 			return 0;
 		}
@@ -409,13 +411,13 @@ unsigned char poll_() { // check if there is something buffered in stdin
 }
 
 int main() {
-	if (!isatty(fileno(stdout))) { fprintf(stderr, "stdout is not a tty\n"); return 9; }
-	if (!isatty(fileno(stderr))) { fprintf(stderr, "stderr is not a tty\n"); return 9; }
-	if (!isatty(fileno(stdin ))) { fprintf(stderr, "stdin is not a tty\n");  return 9; }
+	if (!isatty(fileno(stdout))) { eprintf("stdout is not a tty\n"); return 9; }
+	if (!isatty(fileno(stderr))) { eprintf("stderr is not a tty\n"); return 9; }
+	if (!isatty(fileno(stdin ))) { eprintf("stdin is not a tty\n");  return 9; }
 #ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
-		fprintf(stderr, "%s: %s", RANDOM_FILE, strerror(errno)); // error if can't open RANDOM_FILE
+		eprintf("%s: %s", RANDOM_FILE, strerr); // error if can't open RANDOM_FILE
 		return 1;
 	}
 #endif
@@ -449,7 +451,7 @@ int main() {
 			int c_ = fgetc(stdin);
 			if (c_ == EOF) { // exit if EOF, otherwise poll_ will return true and will hang
 				end(1);
-				fprintf(stderr, "EOF\n");
+				eprintf("EOF\n");
 				return 2;
 			}
 			char c = c_;
