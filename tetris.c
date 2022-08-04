@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <GL/glut.h>
 #include <math.h>
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#define strerr strerror(errno)
 void glutStrokeString(void* a, char* b); // it exists, this is here to stop implicit declaration warning and I can't find the header for it lol
 
 // 3d constants
@@ -228,7 +230,7 @@ uint8_t random_next_piece() {
 	while (1) {
 		t_ = fgetc(rng);
 		if (t_ == EOF) {
-			fprintf(stderr, "RNG file has ended\n");
+			eprintf("RNG file has ended\n");
 			exit(2);
 			return 0;
 		}
@@ -530,7 +532,7 @@ int main(int argc, char* argv[]) {
 #ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
-		fprintf(stderr, "%s: %s", RANDOM_FILE, strerror(errno)); // error if can't open RANDOM_FILE
+		eprintf("%s: %s", RANDOM_FILE, strerr); // error if can't open RANDOM_FILE
 		return 1;
 	}
 #endif
