@@ -24,7 +24,8 @@
 
 // rendering
 //#define BELL eprintf("\a") // uncomment if you want a bell for most actions
-#define LFLAGS ECHO|ISIG|ICANON // flags for tcsetattr
+#define REMOVE_LFLAGS   ECHO|ISIG|ICANON // flags to remove for tcsetattr
+#define ADD_LFLAGS      0 // flags to add for tcsetattr
 #define CLEAR_BORDER    7 // needs to be at least the maximum j of all tetrominos
 #define COLOR_BORDER    "\x1b[38;5;8m" // the color sequence of the border
 #define RESET           "\x1b[0m" // reset sequence
@@ -131,28 +132,28 @@ void clear() {
 void flush_all() {
 	fflush(stdin); fflush(stdout); fflush(stderr);
 }
+struct termios oldterm;
 void begin() {
 	if (began) return;
 	began = 1;
 	system("stty raw"); // set to raw mode
 	printf("\x1b[s\x1b[?47h\x1b[?25l"); // save the screen and cursor location
 	clear();
-    struct termios term;
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag &= ~(LFLAGS); // remove the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
+	struct termios term;
+	tcgetattr(STDIN_FILENO, &oldterm);
+	term = oldterm;
+	term.c_lflag &= ~(REMOVE_LFLAGS); // remove REMOVE_LFLAGS
+	term.c_lflag |= ADD_LFLAGS; // add ADD_LFLAGS
+	tcsetattr(STDIN_FILENO, 0, &term);
 	flush_all();
 }
 void end(uint8_t do_render) {
 	if (!began) return;
 	began = 0;
-    struct termios term;
 	clear();
 	printf("\x1b[?47l\x1b[?25h\x1b[u"); // restore the screen and cursor location
 	if (do_render) render(1);
-    tcgetattr(fileno(stdin), &term);
-    term.c_lflag |= LFLAGS; // add the LFLAGS
-    tcsetattr(fileno(stdin), 0, &term);
+	tcsetattr(STDIN_FILENO, 0, &oldterm);
 	flush_all();
 	system("stty sane"); // set to normal mode
 }
@@ -404,16 +405,16 @@ void drop() { // move_down until it hits something
 unsigned char poll_() { // check if there is something buffered in stdin
 	struct pollfd fds;
 	unsigned char ret;
-	fds.fd = fileno(stdin);
+	fds.fd = STDIN_FILENO;
 	fds.events = POLLIN;
 	ret = poll(&fds, 1, 0);
 	return ret;
 }
 
 int main() {
-	if (!isatty(fileno(stdout))) { eprintf("stdout is not a tty\n"); return 9; }
-	if (!isatty(fileno(stderr))) { eprintf("stderr is not a tty\n"); return 9; }
-	if (!isatty(fileno(stdin ))) { eprintf("stdin is not a tty\n");  return 9; }
+	if (!isatty(STDOUT_FILENO)) { eprintf("stdout is not a tty\n"); return 9; }
+	if (!isatty(STDERR_FILENO)) { eprintf("stderr is not a tty\n"); return 9; }
+	if (!isatty(STDIN_FILENO))  { eprintf("stdin is not a tty\n");  return 9; }
 #ifndef FORCE_PIECE
 	rng = fopen(RANDOM_FILE, "r"); // r = open file for reading
 	if (!rng) {
