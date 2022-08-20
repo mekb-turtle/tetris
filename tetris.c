@@ -402,13 +402,11 @@ void drop() { // move_down until it hits something
 	} while (res);
 }
 
-unsigned char poll_() { // check if there is something buffered in stdin
+int poll_() { // check if there is something buffered in stdin
 	struct pollfd fds;
-	unsigned char ret;
 	fds.fd = STDIN_FILENO;
 	fds.events = POLLIN;
-	ret = poll(&fds, 1, 0);
-	return ret;
+	return poll(&fds, 1, 0);
 }
 
 int main() {
